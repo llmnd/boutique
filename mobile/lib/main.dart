@@ -14,6 +14,9 @@ import 'data/sync_service.dart';
 import 'team_screen.dart';
 import 'app_settings.dart';
 import 'settings_screen.dart';
+import 'login_page.dart';
+import 'add_debt_page.dart';
+import 'debt_details_page.dart';
 
 // Theme colors
 const Color kBackground = Color(0xFF0F1113);
@@ -107,119 +110,7 @@ class _MyAppState extends State<MyApp> {
   }
 }
 
-// Simple Login Page
-class LoginPage extends StatefulWidget {
-  final void Function(String phone, String? shop, int? id) onLogin;
-  LoginPage({required this.onLogin});
-  @override
-  State<LoginPage> createState() => _LoginPageState();
-}
-
-class _LoginPageState extends State<LoginPage> {
-  final phoneCtl = TextEditingController();
-  final passCtl = TextEditingController();
-  bool loading = false;
-
-  String get apiHost {
-    if (kIsWeb) return 'http://localhost:3000/api';
-    try { if (Platform.isAndroid) return 'http://10.0.2.2:3000/api'; } catch(_) {}
-    return 'http://localhost:3000/api';
-  }
-
-  Future doLogin() async {
-    setState((){loading=true;});
-    try {
-      final body = {'phone': phoneCtl.text.trim(), 'password': passCtl.text};
-      final res = await http.post(Uri.parse('$apiHost/auth/login'), headers: {'Content-Type': 'application/json'}, body: json.encode(body)).timeout(Duration(seconds: 8));
-      if (res.statusCode == 200) {
-        final data = json.decode(res.body);
-        final id = data['id'] is int ? data['id'] as int : (data['id'] is String ? int.tryParse(data['id']) : null);
-        widget.onLogin(data['phone'], data['shop_name'], id);
-      } else {
-        final msg = res.body;
-        await showDialog(context: context, builder: (c)=>AlertDialog(title: Text('Erreur'), content: Text('Login échoué: ${res.statusCode}\n$msg'), actions: [TextButton(onPressed: ()=>Navigator.of(c).pop(), child: Text('OK'))]));
-      }
-    } catch (e) {
-      await showDialog(context: context, builder: (c)=>AlertDialog(title: Text('Erreur'), content: Text('Erreur login: $e'), actions: [TextButton(onPressed: ()=>Navigator.of(c).pop(), child: Text('OK'))]));
-    } finally { setState(()=>loading=false); }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text('Login')),
-      body: Padding(
-        padding: EdgeInsets.all(16),
-        child: Column(children: [
-          TextField(controller: phoneCtl, decoration: InputDecoration(labelText: 'Numéro de téléphone')),
-          TextField(controller: passCtl, decoration: InputDecoration(labelText: 'Mot de passe'), obscureText: true),
-          SizedBox(height: 12),
-          ElevatedButton(onPressed: loading?null:doLogin, child: Text('Se connecter')),
-          TextButton(onPressed: () {
-            Navigator.of(context).push(MaterialPageRoute(builder: (_) => RegisterPage(onRegister: widget.onLogin)));
-          }, child: Text('Créer un compte'))
-        ]),
-      ),
-    );
-  }
-}
-
-// Simple Register Page
-class RegisterPage extends StatefulWidget {
-  final void Function(String phone, String? shop, int? id) onRegister;
-  RegisterPage({required this.onRegister});
-  @override
-  State<RegisterPage> createState() => _RegisterPageState();
-}
-
-class _RegisterPageState extends State<RegisterPage> {
-  final phoneCtl = TextEditingController();
-  final passCtl = TextEditingController();
-  final shopCtl = TextEditingController();
-  bool loading = false;
-
-  String get apiHost {
-    if (kIsWeb) return 'http://localhost:3000/api';
-    try { if (Platform.isAndroid) return 'http://10.0.2.2:3000/api'; } catch(_) {}
-    return 'http://localhost:3000/api';
-  }
-
-  Future doRegister() async {
-    setState(()=>loading=true);
-    try {
-      final body = {'phone': phoneCtl.text.trim(), 'password': passCtl.text, 'shop_name': shopCtl.text.trim()};
-      final res = await http.post(Uri.parse('$apiHost/auth/register'), headers: {'Content-Type': 'application/json'}, body: json.encode(body)).timeout(Duration(seconds: 8));
-      if (res.statusCode == 201) {
-        final data = json.decode(res.body);
-        final id = data['id'] is int ? data['id'] as int : (data['id'] is String ? int.tryParse(data['id']) : null);
-        widget.onRegister(data['phone'], data['shop_name'], id);
-        // close register page after successful registration so parent shows Home
-        Navigator.of(context).pop();
-      } else {
-        await showDialog(context: context, builder: (c)=>AlertDialog(title: Text('Erreur'), content: Text('Inscription échouée: ${res.statusCode}\n${res.body}'), actions: [TextButton(onPressed: ()=>Navigator.of(c).pop(), child: Text('OK'))]));
-      }
-    } catch (e) {
-      await showDialog(context: context, builder: (c)=>AlertDialog(title: Text('Erreur'), content: Text('Erreur inscription: $e'), actions: [TextButton(onPressed: ()=>Navigator.of(c).pop(), child: Text('OK'))]));
-    } finally { setState(()=>loading=false); }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text('Créer un compte')),
-      body: Padding(
-        padding: EdgeInsets.all(16),
-        child: Column(children: [
-          TextField(controller: phoneCtl, decoration: InputDecoration(labelText: 'Numéro de téléphone')),
-          TextField(controller: passCtl, decoration: InputDecoration(labelText: 'Mot de passe'), obscureText: true),
-          TextField(controller: shopCtl, decoration: InputDecoration(labelText: 'Nom de la boutique')),
-          SizedBox(height: 12),
-          ElevatedButton(onPressed: loading?null:doRegister, child: Text('Créer')),
-        ]),
-      ),
-    );
-  }
-}
+// Login / Register pages moved to `login_page.dart` to keep main.dart small.
 
 class HomePage extends StatefulWidget {
   final String ownerPhone;
@@ -237,6 +128,10 @@ class _HomePageState extends State<HomePage> {
 
   List debts = [];
   List clients = [];
+  String _searchQuery = '';
+  bool _isSearching = false;
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocus = FocusNode();
   // track which client groups are expanded
   final Set<dynamic> _expandedClients = {};
   String boutiqueName = '';
@@ -259,6 +154,15 @@ class _HomePageState extends State<HomePage> {
     fetchClients();
     fetchDebts();
     _startConnectivityListener();
+    _searchController.addListener(() {
+      final v = _searchController.text;
+      if (v != _searchQuery) {
+        setState(() => _searchQuery = v);
+        // if on debts tab, ask backend-filtered debts
+        if (_tabIndex == 0) fetchDebts(query: _searchQuery);
+        else setState(() {});
+      }
+    });
     // Initialize settings for current owner so formatting uses correct locale/currency
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.ownerPhone.isNotEmpty) {
@@ -272,6 +176,8 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
+    _searchController.dispose();
+    _searchFocus.dispose();
     _connSub?.cancel();
     super.dispose();
   }
@@ -516,6 +422,41 @@ class _HomePageState extends State<HomePage> {
     return c != null ? c['name'] : null;
   }
 
+  double _clientTotalRemaining(dynamic clientId) {
+    double total = 0.0;
+    for (final d in debts) {
+      if (d == null) continue;
+      if (d['client_id'] != clientId) continue;
+      final amt = double.tryParse(d['amount']?.toString() ?? '0') ?? 0.0;
+      double rem = amt;
+      try {
+        if (d != null && d['remaining'] != null) rem = double.tryParse(d['remaining'].toString()) ?? rem;
+        else if (d != null && d['total_paid'] != null) rem = amt - (double.tryParse(d['total_paid'].toString()) ?? 0.0);
+      } catch (_) {}
+      total += rem;
+    }
+    return total;
+  }
+
+  String fmtDate(dynamic v) {
+    if (v == null) return '-';
+    final s = v.toString();
+    // Try ISO parse first
+    try {
+      final dt = DateTime.tryParse(s);
+      if (dt != null) return DateFormat('dd/MM/yyyy').format(dt);
+    } catch (_) {}
+    // Fallback for plain yyyy-MM-dd (no time)
+    try {
+      final datePart = s.split(' ').first;
+      final parts = datePart.split('-');
+      if (parts.length >= 3) {
+        return '${parts[2]}/${parts[1]}/${parts[0]}';
+      }
+    } catch (_) {}
+    return s;
+  }
+
   Future<int?> createClient() async {
     final numberCtl = TextEditingController();
     final nameCtl = TextEditingController();
@@ -636,219 +577,11 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future showDebtDetails(Map d) async {
-    // fetch payments
-    List payments = [];
-    try {
-      final headers = {'Content-Type': 'application/json', if (widget.ownerPhone.isNotEmpty) 'x-owner': widget.ownerPhone};
-      final pres = await http.get(Uri.parse('$apiHost/debts/${d['id']}/payments'), headers: headers).timeout(Duration(seconds: 6));
-      if (pres.statusCode == 200) payments = json.decode(pres.body) as List;
-      else print('Fetch payments failed: ${pres.statusCode} ${pres.body}');
-    } catch (e) {
-      print('Error fetching payments: $e');
-    }
-    final totalPaid = payments.fold<double>(0.0, (s, p) => s + (double.tryParse(p['amount'].toString()) ?? 0.0));
-    final remaining = (double.tryParse(d['amount'].toString()) ?? 0.0) - totalPaid;
-
-    return showDialog<void>(
-      context: context,
-      builder: (ctx) {
-        final mq = MediaQuery.of(ctx).size;
-        final screenWidth = mq.width;
-        final screenHeight = mq.height;
-        final dialogWidth = screenWidth < 520 ? (screenWidth * 0.95) : 520.0;
-        final maxDialogHeight = screenHeight * 0.85;
-        final isSmall = screenWidth < 360;
-        final paymentsHeight = screenWidth < 360 ? 120.0 : (screenWidth < 420 ? 140.0 : 160.0);
-
-        return Dialog(
-          backgroundColor: kCard,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          child: SizedBox(
-            width: dialogWidth,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxHeight: maxDialogHeight),
-              child: SingleChildScrollView(
-                child: Padding(
-                  padding: EdgeInsets.all(isSmall ? 12.0 : 16.0),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Header
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(_clientNameForDebt(d)?.toUpperCase() ?? 'CLIENT INCONNU', style: TextStyle(color: Colors.white, fontSize: isSmall ? 11 : 12, letterSpacing: 1.1)),
-                                SizedBox(height: isSmall ? 6 : 8),
-                                Text(fmtFCFA(d['amount']), style: TextStyle(color: Colors.white, fontSize: isSmall ? 18 : 22, fontWeight: FontWeight.bold)),
-                                SizedBox(height: isSmall ? 4 : 6),
-                                Text('Échéance: ${d['due_date'] ?? '-'}', style: TextStyle(color: kMuted, fontSize: isSmall ? 12 : 13)),
-                              ],
-                            ),
-                          ),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Container(
-                                padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(20)),
-                                child: Text('${((totalPaid / (double.tryParse(d['amount'].toString()) ?? 1)) * 100).clamp(0,100).toStringAsFixed(0)}% payé', style: TextStyle(color: kAccent, fontWeight: FontWeight.w700)),
-                              ),
-                              SizedBox(height: 12),
-                              Icon(Icons.receipt_long, color: kMuted),
-                            ],
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: isSmall ? 8 : 12),
-                      // Progress
-                      LinearProgressIndicator(
-                        value: (double.tryParse(d['amount'].toString()) == 0) ? 0.0 : (totalPaid / (double.tryParse(d['amount'].toString()) ?? 1)).clamp(0.0,1.0),
-                        backgroundColor: Colors.white12,
-                        color: kAccent,
-                        minHeight: isSmall ? 8 : 10,
-                      ),
-                      SizedBox(height: isSmall ? 8 : 12),
-
-                      // Summary row
-                      Row(children: [
-                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Payé', style: TextStyle(color: kMuted)), SizedBox(height:4), Text(fmtFCFA(totalPaid), style: TextStyle(color: kAccent, fontWeight: FontWeight.w700))])),
-                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Reste', style: TextStyle(color: kMuted)), SizedBox(height:4), Text(fmtFCFA(remaining), style: TextStyle(color: remaining <= 0 ? Colors.green : Colors.white, fontWeight: FontWeight.w700))])),
-                      ]),
-                      SizedBox(height: isSmall ? 8 : 12),
-
-                      // Notes
-                      if (d['notes'] != null && d['notes'] != '') ...[
-                        Text('Notes', style: TextStyle(color: kMuted, fontSize: isSmall ? 12 : 13)),
-                        SizedBox(height: isSmall ? 6 : 8),
-                        Text(d['notes'], style: TextStyle(color: Colors.white, fontSize: isSmall ? 13 : 14)),
-                        SizedBox(height: isSmall ? 8 : 12),
-                      ],
-
-                      // Recent payments
-                      Text('Paiements récents', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: isSmall ? 13 : 14)),
-                      SizedBox(height: isSmall ? 8 : 10),
-                      Container(
-                        height: paymentsHeight,
-                        child: payments.isEmpty
-                            ? Center(child: Text('Aucun paiement', style: TextStyle(color: kMuted)))
-                            : ListView.separated(
-                                itemCount: payments.length,
-                                separatorBuilder: (_, __) => Divider(color: Colors.white10, height: 1),
-                                itemBuilder: (ctx, i) {
-                                  final p = payments[i];
-                                  return ListTile(
-                                    dense: true,
-                                    contentPadding: EdgeInsets.zero,
-                                    leading: CircleAvatar(backgroundColor: Colors.grey[900], child: Icon(Icons.monetization_on, color: kAccent)),
-                                    title: Text(fmtFCFA(p['amount']), style: TextStyle(color: kAccent, fontWeight: FontWeight.w600, fontSize: isSmall ? 13 : 14)),
-                                    subtitle: Text(DateFormat('dd/MM/yyyy HH:mm').format(DateTime.parse(p['paid_at'])), style: TextStyle(color: kMuted, fontSize: isSmall ? 11 : 12)),
-                                  );
-                                },
-                              ),
-                      ),
-
-                      SizedBox(height: isSmall ? 8 : 12),
-                      // Actions (responsive)
-                      Wrap(
-                        alignment: WrapAlignment.end,
-                        spacing: 8,
-                        runSpacing: 6,
-                        children: [
-                          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text('Fermer')),
-                          TextButton(
-                            onPressed: () async {
-                              final confirm = await showDialog<bool>(
-                                context: ctx,
-                                builder: (confirmCtx) => AlertDialog(
-                                  title: Text('Confirmer'),
-                                  content: Text('Supprimer cette dette ?'),
-                                  actions: [
-                                    TextButton(onPressed: () => Navigator.of(confirmCtx).pop(false), child: Text('Annuler')),
-                                    ElevatedButton(onPressed: () => Navigator.of(confirmCtx).pop(true), child: Text('Supprimer'))
-                                  ],
-                                ),
-                              );
-                              if (confirm == true) {
-                                Navigator.of(ctx).pop();
-                                try {
-                                  final headers = {'Content-Type': 'application/json', if (widget.ownerPhone.isNotEmpty) 'x-owner': widget.ownerPhone};
-                                  final res = await http.delete(Uri.parse('$apiHost/debts/${d['id']}'), headers: headers);
-                                  if (res.statusCode == 200) {
-                                    await fetchDebts();
-                                  } else {
-                                    print('Delete failed: ${res.statusCode} ${res.body}');
-                                  }
-                                } catch (e) {
-                                  print('Error deleting debt: $e');
-                                }
-                              }
-                            },
-                            child: Text('Supprimer', style: TextStyle(color: Colors.red)),
-                          ),
-                          ElevatedButton.icon(
-                            onPressed: () async {
-                              Navigator.of(ctx).pop();
-                              await _addPayment(d);
-                            },
-                            icon: Icon(Icons.add, color: Colors.black),
-                            label: Text(isSmall ? 'Paiement' : 'Ajouter paiement'),
-                            style: ElevatedButton.styleFrom(
-                              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              minimumSize: Size(0, 36),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
+    final res = await Navigator.of(context).push(MaterialPageRoute(builder: (_) => DebtDetailsPage(ownerPhone: widget.ownerPhone, debt: d)));
+    if (res == true) await fetchDebts();
   }
 
-  Future _addPayment(Map d) async {
-    final amountCtl = TextEditingController();
-    DateTime paidAt = DateTime.now();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: Text('Ajouter paiement'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: amountCtl, decoration: InputDecoration(labelText: 'Montant payé'), keyboardType: TextInputType.number),
-            SizedBox(height: 8),
-            Row(children: [Expanded(child: Text('Date: ${DateFormat('dd/MM/yyyy').format(paidAt)}')), TextButton(onPressed: () async { final d = await showDatePicker(context: context, initialDate: paidAt, firstDate: DateTime(2000), lastDate: DateTime(2100)); if (d!=null) paidAt = d; setState((){}); }, child: Text('Choisir'))])
-          ],
-        ),
-        actions: [TextButton(onPressed: () => Navigator.of(c).pop(false), child: Text('Annuler')), ElevatedButton(onPressed: () => Navigator.of(c).pop(true), child: Text('Ajouter'))],
-      ),
-    );
-    if (ok == true && amountCtl.text.trim().isNotEmpty) {
-      try {
-        final body = {'amount': double.tryParse(amountCtl.text) ?? 0.0, 'paid_at': paidAt.toIso8601String()};
-        final headers = {'Content-Type': 'application/json', if (widget.ownerPhone.isNotEmpty) 'x-owner': widget.ownerPhone};
-        final res = await http.post(Uri.parse('$apiHost/debts/${d['id']}/pay'), headers: headers, body: json.encode(body)).timeout(Duration(seconds: 8));
-        if (res.statusCode == 201 || res.statusCode == 200) {
-          await fetchDebts();
-        } else {
-          print('Add payment failed: ${res.statusCode} ${res.body}');
-          await showDialog(context: context, builder: (ctx) => AlertDialog(title: Text('Erreur'), content: Text('Échec ajout paiement: ${res.statusCode}\n${res.body}'), actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text('OK'))]));
-        }
-      } catch (e) {
-        print('Error adding payment: $e');
-      }
-    }
-  }
+  
 
   Widget _buildDebtsTab() {
     // Group debts by client_id
@@ -861,13 +594,94 @@ class _HomePageState extends State<HomePage> {
 
     final groups = grouped.entries.toList();
 
+    // Sort groups so clients with unpaid amount appear first, fully-paid clients go to bottom
+    groups.sort((a, b) {
+      double sumRem(List list) {
+        double tot = 0.0;
+        for (final d in list) {
+          final amt = double.tryParse(d['amount']?.toString() ?? '0') ?? 0.0;
+          double rem = amt;
+          try {
+            if (d != null && d['remaining'] != null) rem = double.tryParse(d['remaining'].toString()) ?? rem;
+            else if (d != null && d['total_paid'] != null) rem = amt - (double.tryParse(d['total_paid'].toString()) ?? 0.0);
+          } catch (_) {}
+          tot += rem;
+        }
+        return tot;
+      }
+
+      final ra = sumRem(a.value);
+      final rb = sumRem(b.value);
+      final sa = ra > 0 ? 0 : 1; // unpaid first
+      final sb = rb > 0 ? 0 : 1;
+      if (sa != sb) return sa - sb;
+      return 0;
+    });
+
+    // compute global totals for header
+    double totalToCollect = 0.0;
+    int totalUnpaid = 0;
+    for (final d in debts) {
+      final amt = double.tryParse(d['amount']?.toString() ?? '0') ?? 0.0;
+      double rem = amt;
+      try {
+        if (d != null && d['remaining'] != null) rem = double.tryParse(d['remaining'].toString()) ?? rem;
+        else if (d != null && d['total_paid'] != null) rem = amt - (double.tryParse(d['total_paid'].toString()) ?? 0.0);
+      } catch (_) {}
+      totalToCollect += rem;
+      if (rem > 0) totalUnpaid++;
+    }
+
     return RefreshIndicator(
       onRefresh: () async => await fetchDebts(),
       child: ListView.builder(
         padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        itemCount: groups.length,
+        // add one for the header card
+        itemCount: groups.length + 1,
         itemBuilder: (ctx, gi) {
-          final entry = groups[gi];
+          if (gi == 0) {
+            // Header summary card - improved style
+            return Padding(
+              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+              child: Material(
+                color: Colors.transparent,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: kCard,
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 2))],
+                    border: Border.all(color: Colors.white.withOpacity(0.03)),
+                  ),
+                  padding: EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text('Total à percevoir', style: TextStyle(color: kMuted, fontSize: 13)),
+                          SizedBox(height: 6),
+                          Text(fmtFCFA(totalToCollect), style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w400)),
+                          SizedBox(height: 8),
+                        ]),
+                      ),
+                      SizedBox(width: 12),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Container(
+                            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(color: Colors.redAccent.withOpacity(0.12), borderRadius: BorderRadius.circular(20)),
+                            child: Column(children: [Text('Impayées', style: TextStyle(color: Colors.redAccent.withOpacity(0.9), fontSize: 12)), SizedBox(height: 4), Text('$totalUnpaid', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w900, fontSize: 18))]),
+                          ),
+                        ],
+                      )
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }
+
+          final entry = groups[gi - 1];
           final cid = entry.key;
           final clientDebts = entry.value;
           final client = clients.firstWhere((x) => x['id'] == cid, orElse: () => null);
@@ -902,38 +716,40 @@ class _HomePageState extends State<HomePage> {
           final bool isOpen = _expandedClients.contains(cid);
           return Card(
             color: kCard,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            elevation: 0,
-            margin: EdgeInsets.only(bottom: 12, left: 8, right: 8),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            elevation: 2,
+            margin: EdgeInsets.symmetric(vertical: 8, horizontal: 6),
             child: Column(
               children: [
                 InkWell(
                   onTap: () => setState(() { if (isOpen) _expandedClients.remove(cid); else _expandedClients.add(cid); }),
                   onLongPress: () => _showClientActions(client, cid),
                   child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    padding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                     child: Row(
                       children: [
                         Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(color: Colors.grey[900], borderRadius: BorderRadius.circular(6)),
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(color: Colors.grey[900], borderRadius: BorderRadius.circular(10)),
                           child: avatarUrl != null && avatarUrl != ''
-                              ? ClipRRect(borderRadius: BorderRadius.circular(6), child: CachedNetworkImage(imageUrl: avatarUrl, fit: BoxFit.cover))
-                              : Icon(Icons.person_outline, color: kMuted),
+                              ? ClipRRect(borderRadius: BorderRadius.circular(10), child: CachedNetworkImage(imageUrl: avatarUrl, fit: BoxFit.cover))
+                              : Icon(Icons.person_outline, color: kMuted, size: 28),
                         ),
-                        SizedBox(width: 12),
+                        SizedBox(width: 14),
                         Expanded(
                           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Text(clientName.toString().toUpperCase(), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
-                            if (client != null && (client['client_number'] ?? '').toString().isNotEmpty) SizedBox(height: 4),
+                            Text(clientName.toString().toUpperCase(), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
+                            if (client != null && (client['client_number'] ?? '').toString().isNotEmpty) SizedBox(height: 6),
                             if (client != null && (client['client_number'] ?? '').toString().isNotEmpty) Text(client['client_number'].toString(), style: TextStyle(color: kMuted, fontSize: 12)),
                           ]),
                         ),
                         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                          Text('${unpaidCount} impayée(s)', style: TextStyle(color: kMuted, fontSize: 12)),
-                          SizedBox(height: 6),
-                          Text(fmtFCFA(totalRemaining), style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                          Container(
+                            padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(color: Colors.white12, borderRadius: BorderRadius.circular(20)),
+                            child: Column(children: [Text('${unpaidCount} dettes', style: TextStyle(color: kMuted, fontSize: 12)), SizedBox(height: 6), Text(fmtFCFA(totalRemaining), style: TextStyle(color: kAccent, fontWeight: FontWeight.w800))]),
+                          ),
                         ]),
                         SizedBox(width: 8),
                         AnimatedRotation(
@@ -954,9 +770,17 @@ class _HomePageState extends State<HomePage> {
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
                             ElevatedButton.icon(
-                              onPressed: () async { if (client != null) await _addDebtForClient(client); },
+                              onPressed: () async {
+                                if (client != null) {
+                                  final res = await Navigator.of(context).push(MaterialPageRoute(builder: (_) => AddDebtPage(ownerPhone: widget.ownerPhone, clients: clients, preselectedClientId: client['id'])));
+                                  if (res == true) {
+                                    await fetchDebts();
+                                    setState(() { _expandedClients.add(client['id']); });
+                                  }
+                                }
+                              },
                               icon: Icon(Icons.add, size: 16, color: Colors.black),
-                              label: Text('Ajouter dette', style: TextStyle(color: Colors.black)),
+                              label: Text('', style: TextStyle(color: Colors.black)),
                               style: ElevatedButton.styleFrom(backgroundColor: kAccent, padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
                             ),
                           ],
@@ -1024,19 +848,36 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildClientsTab() {
+    // Apply search filtering and move fully-paid clients to bottom
+    final filtered = clients.where((c) {
+      if (_searchQuery.isEmpty) return true;
+      final name = (c['name'] ?? '').toString().toLowerCase();
+      return name.contains(_searchQuery.toLowerCase());
+    }).toList();
+
+    filtered.sort((a, b) {
+      final ra = _clientTotalRemaining(a['id']);
+      final rb = _clientTotalRemaining(b['id']);
+      final sa = ra > 0 ? 0 : 1; // unpaid first
+      final sb = rb > 0 ? 0 : 1;
+      if (sa != sb) return sa - sb;
+      return a['name'].toString().toLowerCase().compareTo(b['name'].toString().toLowerCase());
+    });
+
     return RefreshIndicator(
       onRefresh: () async => await fetchClients(),
       child: ListView.builder(
         padding: EdgeInsets.all(12),
-        itemCount: clients.length,
+        itemCount: filtered.length,
         itemBuilder: (ctx, i) {
-          final c = clients[i];
+          final c = filtered[i];
           return Container(
             margin: EdgeInsets.only(bottom: 16),
             decoration: BoxDecoration(
               color: kCard,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(10),
               border: Border.all(color: Colors.white.withOpacity(0.04), width: 1),
+              boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0,2))],
             ),
             child: InkWell(
               onTap: () async {
@@ -1092,45 +933,10 @@ class _HomePageState extends State<HomePage> {
                     IconButton(
                       icon: Icon(Icons.add_circle, color: kAccent),
                       onPressed: () async {
-                        // prefill createDebt for this client
-                        final amountCtl = TextEditingController();
-                        final notesCtl = TextEditingController();
-                        DateTime? due;
-                        final ok = await showDialog<bool>(
-                          context: context,
-                          builder: (dlg) => AlertDialog(
-                            title: Text('Ajouter dette pour ${c['name']}'),
-                            content: SingleChildScrollView(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  TextField(controller: amountCtl, decoration: InputDecoration(labelText: 'Montant'), keyboardType: TextInputType.number),
-                                  SizedBox(height: 8),
-                                  Row(children: [
-                                    Expanded(child: Text(due == null ? 'Échéance: -' : 'Échéance: ${DateFormat('dd/MM/yyyy').format(due!)}')),
-                                    TextButton(onPressed: () async { final d = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2100)); if (d!=null) { due = d; } setState((){}); }, child: Text('Choisir'))
-                                  ]),
-                                  TextField(controller: notesCtl, decoration: InputDecoration(labelText: 'Notes')),
-                                ],
-                              ),
-                            ),
-                            actions: [TextButton(onPressed: () => Navigator.of(dlg).pop(false), child: Text('Annuler')), ElevatedButton(onPressed: () => Navigator.of(dlg).pop(true), child: Text('Ajouter'))],
-                          ),
-                        );
-                        if (ok == true && amountCtl.text.trim().isNotEmpty) {
-                          try {
-                            final body = {'client_id': c['id'], 'amount': double.tryParse(amountCtl.text) ?? 0.0, 'due_date': due == null ? null : DateFormat('yyyy-MM-dd').format(due!), 'notes': notesCtl.text};
-                            final headers = {'Content-Type': 'application/json', if (widget.ownerPhone.isNotEmpty) 'x-owner': widget.ownerPhone};
-                            final res = await http.post(Uri.parse('$apiHost/debts'), headers: headers, body: json.encode(body)).timeout(Duration(seconds: 8));
-                            if (res.statusCode == 201) {
-                              await fetchDebts();
-                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Dette ajoutée')));
-                            } else {
-                              await showDialog(context: context, builder: (ctx) => AlertDialog(title: Text('Erreur'), content: Text('Échec création dette: ${res.statusCode}\n${res.body}'), actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text('OK'))]));
-                            }
-                          } catch (e) {
-                            await showDialog(context: context, builder: (ctx) => AlertDialog(title: Text('Erreur'), content: Text('Erreur création dette: $e'), actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text('OK'))]));
-                          }
+                        final res = await Navigator.of(context).push(MaterialPageRoute(builder: (_) => AddDebtPage(ownerPhone: widget.ownerPhone, clients: clients, preselectedClientId: c['id'])));
+                        if (res == true) {
+                          await fetchDebts();
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Dette ajoutée')));
                         }
                       },
                     ),
@@ -1148,10 +954,138 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(boutiqueName.isEmpty ? (widget.ownerShopName ?? 'Gestion de dettes') : boutiqueName, style: TextStyle(color: Colors.white)),
+        toolbarHeight: 68,
         backgroundColor: kSurface,
         iconTheme: IconThemeData(color: kMuted),
+        title: _isSearching
+            ? SizedBox(
+                height: 44,
+                child: TextField(
+                  focusNode: _searchFocus,
+                  controller: _searchController,
+                  style: TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: 'Rechercher un client...',
+                    hintStyle: TextStyle(color: kMuted),
+                    prefixIcon: Icon(Icons.search, color: kMuted),
+                    suffixIcon: IconButton(
+                      icon: Icon(Icons.close, color: kMuted),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() {
+                          _isSearching = false;
+                          _searchQuery = '';
+                        });
+                        // refresh lists
+                        fetchClients();
+                        fetchDebts();
+                      },
+                    ),
+                    filled: true,
+                    fillColor: Colors.white12,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (v) async {
+                    if (_tabIndex == 0) await fetchDebts(query: v);
+                    else setState(() {});
+                  },
+                ),
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Replace shop name with a shop icon for a cleaner header
+                  Row(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(color: kAccent, borderRadius: BorderRadius.circular(8)),
+                        child: Center(child: Icon(Icons.store, color: Colors.white, size: 20)),
+                      ),
+                      SizedBox(width: 10),
+                      // keep boutique name next to icon if available
+                      if (boutiqueName.isNotEmpty)
+                        Expanded(child: Text(boutiqueName, style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800)))
+                      else if ((widget.ownerShopName ?? '').isNotEmpty)
+                        Expanded(child: Text(widget.ownerShopName!, style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800)))
+                      else
+                        Expanded(child: Text('Gestion de dettes', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800))),
+                    ],
+                  ),
+                  SizedBox(height: 2),
+                ],
+              ),
         actions: [
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
+            child: Tooltip(
+              message: _tabIndex == 0 ? 'Ajouter dette' : 'Ajouter client',
+              child: Material(
+                color: kAccent,
+                shape: CircleBorder(),
+                elevation: 0,
+                child: InkWell(
+                  customBorder: CircleBorder(),
+                  onTap: () async {
+                    if (_tabIndex == 0) {
+                      final res = await Navigator.of(context).push(MaterialPageRoute(builder: (_) => AddDebtPage(ownerPhone: widget.ownerPhone, clients: clients, preselectedClientId: null)));
+                      if (res == true) await fetchDebts();
+                    } else {
+                      await createClient();
+                    }
+                  },
+                    child: Padding(
+                    padding: EdgeInsets.all(10.0),
+                    child: Icon(_tabIndex == 0 ? Icons.add : Icons.person_add, color: Colors.black, size: 20),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // Search action (circular, with thoughtful person-badge)
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 6.0, vertical: 6.0),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(24),
+                onTap: () {
+                  setState(() {
+                    _isSearching = !_isSearching;
+                    if (!_isSearching) {
+                      _searchController.clear();
+                      _searchQuery = '';
+                      fetchClients();
+                      fetchDebts();
+                    } else {
+                      Future.delayed(Duration(milliseconds: 80), () => FocusScope.of(context).requestFocus(_searchFocus));
+                    }
+                  });
+                },
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(color: Colors.white12, shape: BoxShape.circle),
+                  child: Stack(alignment: Alignment.center, children: [
+                    Icon(Icons.search, color: kMuted),
+                    Positioned(
+                      right: 6,
+                      bottom: 6,
+                      child: Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(color: kAccent, shape: BoxShape.circle, border: Border.all(color: Colors.black12, width: 1)),
+                        child: Center(child: Icon(Icons.person, size: 8, color: Colors.black)),
+                      ),
+                    )
+                  ]),
+                ),
+              ),
+            ),
+          ),
           IconButton(
             onPressed: _isSyncing ? null : () async => await _triggerSync(),
             icon: _isSyncing
@@ -1175,16 +1109,16 @@ class _HomePageState extends State<HomePage> {
       body: _tabIndex == 0 ? _buildDebtsTab() : _buildClientsTab(),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _tabIndex,
-        onTap: (i) { setState(() => _tabIndex = i); },
+        onTap: (i) {
+          setState(() => _tabIndex = i);
+          if (i == 0 && _searchQuery.isNotEmpty) fetchDebts(query: _searchQuery);
+        },
         backgroundColor: kSurface,
         selectedItemColor: kAccent,
         unselectedItemColor: kMuted,
         items: [BottomNavigationBarItem(icon: Icon(Icons.list), label: 'Dettes'), BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Clients')],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async { if (_tabIndex==0) await createDebt(); else await createClient(); },
-        child: Icon(_tabIndex==0?Icons.add:Icons.person_add),
-      ),
+      // Floating action removed — add button moved to AppBar to avoid covering list items
     );
   }
 }
