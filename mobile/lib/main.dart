@@ -135,6 +135,7 @@ class _HomePageState extends State<HomePage> {
   List clients = [];
   String _searchQuery = '';
   bool _isSearching = false;
+  bool _showTotalCard = true; // Toggle for total card visibility
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
   Timer? _debounceTimer;
@@ -362,32 +363,8 @@ class _HomePageState extends State<HomePage> {
   Future _loadBoutique() async {
     final prefs = await SharedPreferences.getInstance();
     final name = prefs.getString('boutique_name_${widget.ownerPhone}');
-    if (name == null || name.isEmpty) {
-      await Future.delayed(Duration(milliseconds: 200));
-      _askBoutiqueName();
-    } else {
+    if (name != null && name.isNotEmpty) {
       setState(() => boutiqueName = name);
-    }
-  }
-
-  Future _askBoutiqueName() async {
-    final ctl = TextEditingController();
-    final ok = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (c) => AlertDialog(
-        title: Text('Créer votre boutique'),
-        content: TextField(controller: ctl, decoration: InputDecoration(labelText: 'Nom de la boutique')),
-        actions: [
-          ElevatedButton(onPressed: () => Navigator.of(c).pop(false), child: Text('Ignorer')),
-          TextButton(onPressed: () => Navigator.of(c).pop(true), child: Text('OK')),
-        ],
-      ),
-    );
-    if (ok == true && ctl.text.trim().isNotEmpty) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('boutique_name_${widget.ownerPhone}', ctl.text.trim());
-      setState(() => boutiqueName = ctl.text.trim());
     }
   }
 
@@ -676,7 +653,18 @@ class _HomePageState extends State<HomePage> {
                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                               Text('Total à percevoir', style: TextStyle(color: kMuted, fontSize: 13)),
                               SizedBox(height: 6),
-                              Text(fmtFCFA(totalToCollect), style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontSize: 20, fontWeight: FontWeight.w400)),
+                              Row(
+                                children: [
+                                  _showTotalCard
+                                    ? Text(fmtFCFA(totalToCollect), style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontSize: 20, fontWeight: FontWeight.w400))
+                                    : Text('••••••', style: TextStyle(color: kMuted, fontSize: 20, fontWeight: FontWeight.w400)),
+                                  SizedBox(width: 8),
+                                  GestureDetector(
+                                    onTap: () => setState(() => _showTotalCard = !_showTotalCard),
+                                    child: Icon(_showTotalCard ? Icons.visibility : Icons.visibility_off, color: kMuted, size: 20),
+                                  ),
+                                ],
+                              ),
                             ]),
                           ),
                           SizedBox(width: 12),
@@ -858,10 +846,13 @@ class _HomePageState extends State<HomePage> {
                         final bool isPaid = d['paid'] == true || remainingVal <= 0;
                         final bool statusIsGreen = isPaid || inProgress;
                         String dueText = '-';
+                        bool isOverdue = false;
+                        DateTime? dueDateTime;
                         try {
                           if (d != null && d['due_date'] != null) {
-                            final dd = DateTime.parse(d['due_date']);
-                            dueText = DateFormat('dd/MM/yyyy').format(dd);
+                            dueDateTime = DateTime.parse(d['due_date']);
+                            dueText = DateFormat('dd/MM/yyyy').format(dueDateTime);
+                            isOverdue = dueDateTime.isBefore(DateTime.now()) && !isPaid;
                           }
                         } catch (_) {}
 
@@ -877,7 +868,28 @@ class _HomePageState extends State<HomePage> {
                                     children: [
                                       Text(fmtFCFA(d['amount']), style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontWeight: FontWeight.w600)),
                                       SizedBox(height: 4),
-                                      Text('Échéance: $dueText', style: TextStyle(color: kMuted, fontSize: 12)),
+                                      Row(
+                                        children: [
+                                          Text('Échéance: $dueText', style: TextStyle(color: kMuted, fontSize: 12)),
+                                          SizedBox(width: 8),
+                                          if (dueDateTime != null)
+                                            Container(
+                                              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: isOverdue ? Colors.red.withOpacity(0.12) : Colors.blue.withOpacity(0.12),
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(isOverdue ? Icons.warning_rounded : Icons.schedule, size: 10, color: isOverdue ? Colors.red : Colors.blue),
+                                                  SizedBox(width: 4),
+                                                  Text(isOverdue ? 'Dépassée' : 'En cours', style: TextStyle(fontSize: 10, color: isOverdue ? Colors.red : Colors.blue, fontWeight: FontWeight.w600)),
+                                                ],
+                                              ),
+                                            ),
+                                        ],
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -1079,32 +1091,6 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
         actions: [
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
-            child: Tooltip(
-              message: _tabIndex == 0 ? 'Ajouter dette' : 'Ajouter client',
-              child: Material(
-                color: Theme.of(context).colorScheme.primary,
-                shape: CircleBorder(),
-                elevation: 4,
-                child: InkWell(
-                  customBorder: CircleBorder(),
-                  onTap: () async {
-                    if (_tabIndex == 0) {
-                      final res = await Navigator.of(context).push(MaterialPageRoute(builder: (_) => AddDebtPage(ownerPhone: widget.ownerPhone, clients: clients, preselectedClientId: null)));
-                      if (res == true) await fetchDebts();
-                    } else {
-                      await createClient();
-                    }
-                  },
-                  child: Padding(
-                    padding: EdgeInsets.all(12.0),
-                    child: Icon(_tabIndex == 0 ? Icons.add : Icons.person_add, color: Theme.of(context).colorScheme.onPrimary, size: 24),
-                  ),
-                ),
-              ),
-            ),
-          ),
           // Search action (circular, with thoughtful person-badge)
           Padding(
             padding: EdgeInsets.symmetric(horizontal: 6.0, vertical: 6.0),

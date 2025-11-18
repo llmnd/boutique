@@ -7,10 +7,10 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 // Colors (keep in sync with main theme)
 const Color kBackground = Color(0xFF0F1113);
 const Color kCard = Color(0xFF151718);
-const Color kAccent = Color(0xFF2DB89A);
-const Color kMuted = Color(0xFF9AA0A6);
+const Color kAccent = Color.fromARGB(199, 105, 60, 149);
+const Color kMuted = Color.fromARGB(255, 164, 154, 166);
 const Color kTextPrimary = Color(0xFFFFFFFF);
-const Color kTextSecondary = Color(0xFF9AA0A6);
+const Color kTextSecondary = Color.fromARGB(255, 163, 154, 166);
 
 class LoginPage extends StatefulWidget {
   final void Function(String phone, String? shop, int? id) onLogin;
@@ -257,6 +257,7 @@ class _LoginPageState extends State<LoginPage> {
                                     style: TextStyle(
                                       fontWeight: FontWeight.w700,
                                       fontSize: 16,
+                                      color: Colors.white,
                                     ),
                                   ),
                           ),
