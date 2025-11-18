@@ -109,31 +109,31 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(widget.debt['client_name'] ?? '', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800)),
+                    Text(widget.debt['client_name'] ?? '', style: TextStyle(color: Theme.of(context).textTheme.titleLarge?.color, fontSize: 16, fontWeight: FontWeight.w800)),
                     SizedBox(height: 8),
-                    Text(fmtAmount(amount), style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900)),
+                    Text(fmtAmount(amount), style: TextStyle(color: Theme.of(context).textTheme.displayMedium?.color, fontSize: 22, fontWeight: FontWeight.w900)),
                     SizedBox(height: 8),
                     Text('Échéance: ${fmtDate(widget.debt['due_date'])}', style: TextStyle(color: Theme.of(context).colorScheme.secondary)),
                     SizedBox(height: 12),
                     LinearProgressIndicator(
                       value: amount == 0 ? 0.0 : (totalPaid / amount).clamp(0.0, 1.0),
-                      backgroundColor: Colors.white12,
+                      backgroundColor: Theme.of(context).dividerColor.withOpacity(0.3),
                       color: Theme.of(context).colorScheme.primary,
                       minHeight: isSmall ? 8 : 10,
                     ),
                     SizedBox(height: 12),
                     Row(children: [
                       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Payé', style: TextStyle(color: Theme.of(context).colorScheme.secondary)), SizedBox(height:4), Text(fmtAmount(totalPaid), style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w700))])),
-                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Reste', style: TextStyle(color: Theme.of(context).colorScheme.secondary)), SizedBox(height:4), Text(fmtAmount(remaining), style: TextStyle(color: remaining <= 0 ? Colors.green : Colors.white, fontWeight: FontWeight.w700))])),
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Reste', style: TextStyle(color: Theme.of(context).colorScheme.secondary)), SizedBox(height:4), Text(fmtAmount(remaining), style: TextStyle(color: remaining <= 0 ? Colors.green : Theme.of(context).textTheme.bodyLarge?.color, fontWeight: FontWeight.w700))])),
                     ]),
                     SizedBox(height: 12),
                     if (widget.debt['notes'] != null && widget.debt['notes'] != '') ...[
                       Text('Notes', style: TextStyle(color: Theme.of(context).colorScheme.secondary)),
                       SizedBox(height: 8),
-                      Text(widget.debt['notes'], style: TextStyle(color: Colors.white)),
+                      Text(widget.debt['notes'], style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color)),
                       SizedBox(height: 12),
                     ],
-                    Text('Paiements récents', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                    Text('Paiements récents', style: TextStyle(color: Theme.of(context).textTheme.titleLarge?.color, fontWeight: FontWeight.w700)),
                     SizedBox(height: 8),
                     Container(
                       height: 220,
@@ -143,7 +143,7 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> {
                           ? Center(child: Text('Aucun paiement', style: TextStyle(color: Theme.of(context).colorScheme.secondary)))
                           : ListView.separated(
                               itemCount: payments.length,
-                              separatorBuilder: (_, __) => Divider(color: Colors.white10, height: 1),
+                              separatorBuilder: (_, __) => Divider(color: Theme.of(context).dividerColor, height: 1),
                               itemBuilder: (ctx, i) {
                                 final p = payments[i];
                                 return ListTile(
@@ -162,7 +162,7 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> {
                       children: [
                         TextButton(onPressed: () => Navigator.of(context).pop(_changed), child: Text('Fermer')),
                         SizedBox(width: 8),
-                        ElevatedButton.icon(onPressed: _addPayment, icon: Icon(Icons.add, color: Colors.black), label: Text('Ajouter paiement', style: TextStyle(color: Colors.black)), style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primary)),
+                        ElevatedButton.icon(onPressed: _addPayment, icon: Icon(Icons.add, color: Theme.of(context).elevatedButtonTheme.style?.foregroundColor?.resolve({}) ?? Colors.white), label: Text('Ajouter paiement', style: TextStyle(color: Theme.of(context).elevatedButtonTheme.style?.foregroundColor?.resolve({}) ?? Colors.white)), style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primary)),
                       ],
                     )
                   ],

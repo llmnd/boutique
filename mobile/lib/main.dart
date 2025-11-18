@@ -17,12 +17,13 @@ import 'settings_screen.dart';
 import 'login_page.dart';
 import 'add_debt_page.dart';
 import 'debt_details_page.dart';
+import 'theme.dart';
 
-// Theme colors
+// Theme colors (deprecated - use Theme.of(context) instead)
 const Color kBackground = Color(0xFF0F1113);
 const Color kSurface = Color(0xFF121416);
 const Color kCard = Color(0xFF151718);
-const Color kAccent = Color(0xFF2DB89A);
+const Color kAccent = Color(0xFF7C3AED);
 const Color kMuted = Color(0xFF9AA0A6);
 
 String fmtFCFA(dynamic v) {
@@ -54,11 +55,24 @@ class _MyAppState extends State<MyApp> {
   String? ownerPhone;
   String? ownerShopName;
   int? ownerId;
+  late AppSettings _appSettings;
 
   @override
   void initState() {
     super.initState();
+    _appSettings = AppSettings();
+    _appSettings.addListener(_onSettingsChanged);
     _loadOwner();
+  }
+
+  void _onSettingsChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _appSettings.removeListener(_onSettingsChanged);
+    super.dispose();
   }
 
   Future _loadOwner() async {
@@ -91,18 +105,9 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    final baseTheme = ThemeData.dark();
     return MaterialApp(
       title: 'Boutique - Gestion de dettes',
-      theme: baseTheme.copyWith(
-        textTheme: baseTheme.textTheme.apply(bodyColor: Colors.white, displayColor: Colors.white),
-        colorScheme: baseTheme.colorScheme.copyWith(primary: kAccent, secondary: kMuted),
-        appBarTheme: AppBarTheme(backgroundColor: kSurface, foregroundColor: Colors.white, elevation: 0),
-        scaffoldBackgroundColor: kBackground,
-        cardColor: kCard,
-        elevatedButtonTheme: ElevatedButtonThemeData(style: ElevatedButton.styleFrom(backgroundColor: kAccent, foregroundColor: Colors.black)),
-        floatingActionButtonTheme: FloatingActionButtonThemeData(backgroundColor: kAccent, foregroundColor: Colors.black), dialogTheme: DialogThemeData(backgroundColor: kCard),
-      ),
+      theme: getAppTheme(lightMode: _appSettings.lightMode),
       home: ownerPhone == null
           ? LoginPage(onLogin: (phone, shop, id) => setOwner(phone: phone, shopName: shop, id: id))
           : HomePage(ownerPhone: ownerPhone!, ownerShopName: ownerShopName, onLogout: clearOwner),
@@ -221,14 +226,14 @@ class _HomePageState extends State<HomePage> {
           maxChildSize: 0.9,
           builder: (context2, sc) {
             return Container(
-              decoration: BoxDecoration(color: kCard, borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+              decoration: BoxDecoration(color: Theme.of(context2).cardColor, borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
               child: SingleChildScrollView(
                 controller: sc,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // handle
-                    Center(child: Container(width: 40, height: 4, margin: EdgeInsets.symmetric(vertical: 12), decoration: BoxDecoration(color: Colors.white12, borderRadius: BorderRadius.circular(4)))),
+                    Center(child: Container(width: 40, height: 4, margin: EdgeInsets.symmetric(vertical: 12), decoration: BoxDecoration(color: Theme.of(context2).textTheme.bodyMedium?.color?.withOpacity(0.2), borderRadius: BorderRadius.circular(4)))),
                     // header with avatar + name + number
                     Padding(
                       padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -237,27 +242,27 @@ class _HomePageState extends State<HomePage> {
                           Container(
                             width: 64,
                             height: 64,
-                            decoration: BoxDecoration(color: Colors.grey[900], borderRadius: BorderRadius.circular(8)),
+                            decoration: BoxDecoration(color: Theme.of(context2).brightness == Brightness.light ? Colors.grey[300] : Colors.grey[900], borderRadius: BorderRadius.circular(8)),
                             child: avatar != null && avatar != ''
                                 ? ClipRRect(borderRadius: BorderRadius.circular(8), child: CachedNetworkImage(imageUrl: avatar, fit: BoxFit.cover))
-                                : Icon(Icons.person, color: kMuted, size: 36),
+                                : Icon(Icons.person, color: Theme.of(context2).textTheme.bodyMedium?.color, size: 36),
                           ),
                           SizedBox(width: 12),
                           Expanded(
                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Text(name.toString(), style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800)),
+                              Text(name.toString(), style: TextStyle(color: Theme.of(context2).textTheme.titleLarge?.color, fontSize: 16, fontWeight: FontWeight.w800)),
                               if (number != null && number.toString().isNotEmpty) SizedBox(height: 6),
-                              if (number != null && number.toString().isNotEmpty) Text(number.toString(), style: TextStyle(color: kMuted)),
+                              if (number != null && number.toString().isNotEmpty) Text(number.toString(), style: TextStyle(color: Theme.of(context2).textTheme.bodyMedium?.color)),
                             ]),
                           )
                         ],
                       ),
                     ),
-                    Divider(color: Colors.white10),
+                    Divider(color: Theme.of(context2).dividerColor),
                     ListTile(
-                      leading: Icon(Icons.add_circle, color: kAccent),
-                      title: Text('Ajouter une dette', style: TextStyle(color: Colors.white)),
-                      subtitle: Text('Ajouter une dette pour ce client', style: TextStyle(color: kMuted)),
+                      leading: Icon(Icons.add_circle, color: Theme.of(context2).colorScheme.primary),
+                      title: Text('Ajouter une dette', style: TextStyle(color: Theme.of(context2).textTheme.bodyLarge?.color)),
+                      subtitle: Text('Ajouter une dette pour ce client', style: TextStyle(color: Theme.of(context2).textTheme.bodyMedium?.color)),
                       onTap: () async {
                         Navigator.of(ctx).pop();
                         dynamic c = client;
@@ -268,9 +273,9 @@ class _HomePageState extends State<HomePage> {
                       },
                     ),
                     ListTile(
-                      leading: Icon(Icons.copy, color: kMuted),
-                      title: Text('Copier numéro', style: TextStyle(color: Colors.white)),
-                      subtitle: Text('Copier le numéro du client', style: TextStyle(color: kMuted)),
+                      leading: Icon(Icons.copy, color: Theme.of(context2).textTheme.bodyMedium?.color),
+                      title: Text('Copier numéro', style: TextStyle(color: Theme.of(context2).textTheme.bodyLarge?.color)),
+                      subtitle: Text('Copier le numéro du client', style: TextStyle(color: Theme.of(context2).textTheme.bodyMedium?.color)),
                       onTap: () async {
                         Navigator.of(ctx).pop();
                         final num = client != null ? client['client_number'] ?? '' : '';
@@ -655,30 +660,77 @@ class _HomePageState extends State<HomePage> {
                 color: Colors.transparent,
                 child: Container(
                   decoration: BoxDecoration(
-                    color: kCard,
+                    color: Theme.of(context).cardColor,
                     borderRadius: BorderRadius.circular(14),
                     boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 2))],
                     border: Border.all(color: Colors.white.withOpacity(0.03)),
                   ),
                   padding: EdgeInsets.symmetric(horizontal: 18, vertical: 18),
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text('Total à percevoir', style: TextStyle(color: kMuted, fontSize: 13)),
-                          SizedBox(height: 6),
-                          Text(fmtFCFA(totalToCollect), style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w400)),
-                          SizedBox(height: 8),
-                        ]),
-                      ),
-                      SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
+                      // Header with total
+                      Row(
                         children: [
-                          Container(
-                            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            decoration: BoxDecoration(color: Colors.redAccent.withOpacity(0.12), borderRadius: BorderRadius.circular(20)),
-                            child: Column(children: [Text('Impayées', style: TextStyle(color: Colors.redAccent.withOpacity(0.9), fontSize: 12)), SizedBox(height: 4), Text('$totalUnpaid', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w900, fontSize: 18))]),
+                          Expanded(
+                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Text('Total à percevoir', style: TextStyle(color: kMuted, fontSize: 13)),
+                              SizedBox(height: 6),
+                              Text(fmtFCFA(totalToCollect), style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontSize: 20, fontWeight: FontWeight.w400)),
+                            ]),
+                          ),
+                          SizedBox(width: 12),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Container(
+                                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(color: Colors.redAccent.withOpacity(0.12), borderRadius: BorderRadius.circular(20)),
+                                child: Column(children: [Text('Impayées', style: TextStyle(color: Colors.redAccent.withOpacity(0.9), fontSize: 12)), SizedBox(height: 4), Text('$totalUnpaid', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w900, fontSize: 18))]),
+                              ),
+                            ],
+                          )
+                        ],
+                      ),
+                      SizedBox(height: 16),
+                      // Action buttons
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () => setState(() => _tabIndex = 1),
+                              child: Column(
+                                children: [
+                                  Container(
+                                    width: 60,
+                                    height: 60,
+                                    decoration: BoxDecoration(shape: BoxShape.circle, color: Theme.of(context).colorScheme.surface.withOpacity(0.5)),
+                                    child: Icon(Icons.person_add, color: Theme.of(context).textTheme.bodyLarge?.color, size: 26),
+                                  ),
+                                  SizedBox(height: 8),
+                                  Text('Client', style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontSize: 14, fontWeight: FontWeight.w500)),
+                                ],
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => AddDebtPage(ownerPhone: widget.ownerPhone, clients: clients, preselectedClientId: null))),
+                              child: Column(
+                                children: [
+                                  Container(
+                                    width: 60,
+                                    height: 60,
+                                    decoration: BoxDecoration(shape: BoxShape.circle, color: Theme.of(context).colorScheme.surface.withOpacity(0.5)),
+                                    child: Icon(Icons.note_add, color: Theme.of(context).textTheme.bodyLarge?.color, size: 26),
+                                  ),
+                                  SizedBox(height: 8),
+                                  Text('Dette', style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontSize: 14, fontWeight: FontWeight.w500)),
+                                ],
+                              ),
+                            ),
                           ),
                         ],
                       )
@@ -723,7 +775,7 @@ class _HomePageState extends State<HomePage> {
           // Minimalistic client card (expandable)
           final bool isOpen = _expandedClients.contains(cid);
           return Card(
-            color: kCard,
+            color: Theme.of(context).cardColor,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             elevation: 2,
             margin: EdgeInsets.symmetric(vertical: 8, horizontal: 6),
@@ -739,15 +791,15 @@ class _HomePageState extends State<HomePage> {
                         Container(
                           width: 56,
                           height: 56,
-                          decoration: BoxDecoration(color: Colors.grey[900], borderRadius: BorderRadius.circular(10)),
+                          decoration: BoxDecoration(color: Theme.of(context).brightness == Brightness.light ? Colors.grey[300] : Colors.grey[900], borderRadius: BorderRadius.circular(10)),
                           child: avatarUrl != null && avatarUrl != ''
                               ? ClipRRect(borderRadius: BorderRadius.circular(10), child: CachedNetworkImage(imageUrl: avatarUrl, fit: BoxFit.cover))
-                              : Icon(Icons.person_outline, color: kMuted, size: 28),
+                              : Icon(Icons.person_outline, color: Theme.of(context).textTheme.bodyMedium?.color, size: 28),
                         ),
                         SizedBox(width: 14),
                         Expanded(
                           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Text(clientName.toString().toUpperCase(), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
+                            Text(clientName.toString().toUpperCase(), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Theme.of(context).textTheme.titleLarge?.color)),
                             if (client != null && (client['client_number'] ?? '').toString().isNotEmpty) SizedBox(height: 6),
                             if (client != null && (client['client_number'] ?? '').toString().isNotEmpty) Text(client['client_number'].toString(), style: TextStyle(color: kMuted, fontSize: 12)),
                           ]),
@@ -755,15 +807,15 @@ class _HomePageState extends State<HomePage> {
                         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                           Container(
                             padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(color: Colors.white12, borderRadius: BorderRadius.circular(20)),
-                            child: Column(children: [Text('${unpaidCount} dettes', style: TextStyle(color: kMuted, fontSize: 12)), SizedBox(height: 6), Text(fmtFCFA(totalRemaining), style: TextStyle(color: kAccent, fontWeight: FontWeight.w800))]),
+                            decoration: BoxDecoration(color: Theme.of(context).dividerColor.withOpacity(0.3), borderRadius: BorderRadius.circular(20)),
+                            child: Column(children: [Text('${unpaidCount} dettes', style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color, fontSize: 12)), SizedBox(height: 6), Text(fmtFCFA(totalRemaining), style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w800))]),
                           ),
                         ]),
                         SizedBox(width: 8),
                         AnimatedRotation(
                           turns: isOpen ? 0.5 : 0.0,
                           duration: Duration(milliseconds: 200),
-                          child: Icon(Icons.expand_more, color: kMuted),
+                          child: Icon(Icons.expand_more, color: Theme.of(context).textTheme.bodyMedium?.color),
                         ),
                       ],
                     ),
@@ -823,7 +875,7 @@ class _HomePageState extends State<HomePage> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text(fmtFCFA(d['amount']), style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                                      Text(fmtFCFA(d['amount']), style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontWeight: FontWeight.w600)),
                                       SizedBox(height: 4),
                                       Text('Échéance: $dueText', style: TextStyle(color: kMuted, fontSize: 12)),
                                     ],
@@ -832,7 +884,7 @@ class _HomePageState extends State<HomePage> {
                                 Column(children: [
                                   Text('Reste', style: TextStyle(color: kMuted, fontSize: 12)),
                                   SizedBox(height: 6),
-                                  Text(fmtFCFA(remainingVal), style: TextStyle(color: (remainingVal <= 0) ? Colors.green : Colors.white, fontWeight: FontWeight.w700)),
+                                  Text(fmtFCFA(remainingVal), style: TextStyle(color: (remainingVal <= 0) ? Colors.green : Theme.of(context).textTheme.bodyLarge?.color, fontWeight: FontWeight.w700)),
                                 ]),
                                 SizedBox(width: 12),
                                 Container(
@@ -971,13 +1023,13 @@ class _HomePageState extends State<HomePage> {
                 child: TextField(
                   focusNode: _searchFocus,
                   controller: _searchController,
-                  style: TextStyle(color: Colors.white),
+                  style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
                   decoration: InputDecoration(
                     hintText: 'Rechercher un client...',
-                    hintStyle: TextStyle(color: kMuted),
-                    prefixIcon: Icon(Icons.search, color: kMuted),
+                    hintStyle: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
+                    prefixIcon: Icon(Icons.search, color: Theme.of(context).textTheme.bodyMedium?.color),
                     suffixIcon: IconButton(
-                      icon: Icon(Icons.close, color: kMuted),
+                      icon: Icon(Icons.close, color: Theme.of(context).textTheme.bodyMedium?.color),
                       onPressed: () {
                         _searchController.clear();
                         setState(() {
@@ -990,7 +1042,7 @@ class _HomePageState extends State<HomePage> {
                       },
                     ),
                     filled: true,
-                    fillColor: Colors.white12,
+                    fillColor: Theme.of(context).brightness == Brightness.light ? Colors.grey[100] : Colors.white12,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
                     contentPadding: EdgeInsets.zero,
                   ),
@@ -1032,9 +1084,9 @@ class _HomePageState extends State<HomePage> {
             child: Tooltip(
               message: _tabIndex == 0 ? 'Ajouter dette' : 'Ajouter client',
               child: Material(
-                color: kAccent,
+                color: Theme.of(context).colorScheme.primary,
                 shape: CircleBorder(),
-                elevation: 0,
+                elevation: 4,
                 child: InkWell(
                   customBorder: CircleBorder(),
                   onTap: () async {
@@ -1045,9 +1097,9 @@ class _HomePageState extends State<HomePage> {
                       await createClient();
                     }
                   },
-                    child: Padding(
-                    padding: EdgeInsets.all(10.0),
-                    child: Icon(_tabIndex == 0 ? Icons.add : Icons.person_add, color: Colors.black, size: 20),
+                  child: Padding(
+                    padding: EdgeInsets.all(12.0),
+                    child: Icon(_tabIndex == 0 ? Icons.add : Icons.person_add, color: Theme.of(context).colorScheme.onPrimary, size: 24),
                   ),
                 ),
               ),

@@ -49,12 +49,28 @@ class _LoginPageState extends State<LoginPage> {
             : (data['id'] is String ? int.tryParse(data['id']) : null);
         widget.onLogin(data['phone'], data['shop_name'], id);
       } else {
-        final msg = res.body;
+        final body = res.body;
+        final lower = body.toLowerCase();
+        String friendly;
+        if (res.statusCode == 401 || lower.contains('invalid') || lower.contains('incorrect') || lower.contains('credentials') || lower.contains('wrong')) {
+          friendly = 'Identifiants incorrects. Vérifiez le numéro et le mot de passe.';
+        } else if (res.statusCode == 404 || lower.contains('not found')) {
+          friendly = 'Compte introuvable. Vérifiez le numéro ou créez un compte.';
+        } else {
+          // try to show server message if available
+          try {
+            final parsed = json.decode(body);
+            if (parsed is Map && parsed['message'] != null) friendly = parsed['message'].toString();
+            else friendly = 'Connexion échouée (${res.statusCode}).';
+          } catch (_) {
+            friendly = 'Connexion échouée (${res.statusCode}).';
+          }
+        }
         await showDialog(
             context: context,
             builder: (c) => AlertDialog(
                   title: Text('Erreur'),
-                  content: Text('Login échoué: ${res.statusCode}\n$msg'),
+                  content: Text(friendly),
                   actions: [
                     TextButton(
                         onPressed: () => Navigator.of(c).pop(),

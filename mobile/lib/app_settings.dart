@@ -13,6 +13,8 @@ class AppSettings extends ChangeNotifier {
   String _currency = 'XOF';
   Map<String, double> _rates = {'XOF': 1.0, 'EUR': 0.0015, 'USD': 0.0017};
   String? _ownerPhone;
+  bool _lightMode = false;
+  bool _showAmounts = true;
 
   String get locale => _locale;
   String get currency => _currency;
@@ -24,6 +26,8 @@ class AppSettings extends ChangeNotifier {
     final l = prefs.getString('locale_${ownerPhone}');
     final c = prefs.getString('currency_${ownerPhone}');
     final r = prefs.getString('rates_${ownerPhone}');
+    final lm = prefs.getBool('light_mode_${ownerPhone}');
+    final sa = prefs.getBool('show_amounts_${ownerPhone}');
     if (l != null) _locale = l;
     if (c != null) _currency = c;
     if (r != null) {
@@ -32,6 +36,8 @@ class AppSettings extends ChangeNotifier {
         _rates = parsed.map((k, v) => MapEntry(k as String, (v as num).toDouble()));
       } catch (_) {}
     }
+    if (lm != null) _lightMode = lm;
+    if (sa != null) _showAmounts = sa;
     notifyListeners();
   }
 
@@ -53,6 +59,23 @@ class AppSettings extends ChangeNotifier {
     _rates = rates;
     final prefs = await SharedPreferences.getInstance();
     if (_ownerPhone != null) await prefs.setString('rates_${_ownerPhone}', json.encode(rates));
+    notifyListeners();
+  }
+
+  bool get lightMode => _lightMode;
+  bool get showAmounts => _showAmounts;
+
+  Future<void> setLightMode(bool light) async {
+    _lightMode = light;
+    final prefs = await SharedPreferences.getInstance();
+    if (_ownerPhone != null) await prefs.setBool('light_mode_${_ownerPhone}', light);
+    notifyListeners();
+  }
+
+  Future<void> setShowAmounts(bool show) async {
+    _showAmounts = show;
+    final prefs = await SharedPreferences.getInstance();
+    if (_ownerPhone != null) await prefs.setBool('show_amounts_${_ownerPhone}', show);
     notifyListeners();
   }
 

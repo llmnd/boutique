@@ -99,7 +99,7 @@ class _AddPaymentPageState extends State<AddPaymentPage> {
                       Text(
                         widget.debt['client_name'] ?? '', 
                         style: TextStyle(
-                          color: Colors.white, 
+                          color: Theme.of(context).textTheme.titleLarge?.color, 
                           fontWeight: FontWeight.w800,
                           fontSize: 18
                         ),
@@ -119,19 +119,17 @@ class _AddPaymentPageState extends State<AddPaymentPage> {
                         style: TextStyle(
                           fontSize: 32, 
                           fontWeight: FontWeight.w700, 
-                          color: Colors.white
+                          color: Theme.of(context).textTheme.displayLarge?.color
                         ),
                         textAlign: TextAlign.center,
                         decoration: InputDecoration(
                           hintText: '0',
                           hintStyle: TextStyle(
-                            color: Colors.white24, 
+                            color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.3), 
                             fontSize: 32
                           ),
                           filled: true,
-                          fillColor: Theme.of(context).scaffoldBackgroundColor == Colors.white 
-                              ? Colors.grey[50] 
-                              : Colors.grey[900],
+                          fillColor: Theme.of(context).inputDecorationTheme.fillColor ?? Theme.of(context).scaffoldBackgroundColor,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12), 
                             borderSide: BorderSide.none
@@ -148,13 +146,13 @@ class _AddPaymentPageState extends State<AddPaymentPage> {
                                 width: 20, 
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2, 
-                                  color: Colors.white
+                                  color: Theme.of(context).colorScheme.onPrimary
                                 )
                               ) 
                             : Text(
                                 'Enregistrer le paiement', 
                                 style: TextStyle(
-                                  color: Colors.black,
+                                  color: Theme.of(context).elevatedButtonTheme.style?.foregroundColor?.resolve({}) ?? Colors.white,
                                   fontSize: 16,
                                   fontWeight: FontWeight.w600
                                 )
