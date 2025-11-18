@@ -132,6 +132,7 @@ class _HomePageState extends State<HomePage> {
   bool _isSearching = false;
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
+  Timer? _debounceTimer;
   // track which client groups are expanded
   final Set<dynamic> _expandedClients = {};
   String boutiqueName = '';
@@ -158,9 +159,15 @@ class _HomePageState extends State<HomePage> {
       final v = _searchController.text;
       if (v != _searchQuery) {
         setState(() => _searchQuery = v);
-        // if on debts tab, ask backend-filtered debts
-        if (_tabIndex == 0) fetchDebts(query: _searchQuery);
-        else setState(() {});
+        // debounce network calls
+        if (_debounceTimer?.isActive ?? false) _debounceTimer?.cancel();
+        _debounceTimer = Timer(Duration(milliseconds: 400), () {
+          if (_tabIndex == 0) {
+            fetchDebts(query: _searchQuery);
+          } else {
+            setState(() {});
+          }
+        });
       }
     });
     // Initialize settings for current owner so formatting uses correct locale/currency
@@ -178,6 +185,7 @@ class _HomePageState extends State<HomePage> {
   void dispose() {
     _searchController.dispose();
     _searchFocus.dispose();
+    _debounceTimer?.cancel();
     _connSub?.cancel();
     super.dispose();
   }
