@@ -33,6 +33,8 @@ String fmtFCFA(dynamic v) {
     if (parsed == null) return '${v.toString()} FCFA';
     return '${parsed.toStringAsFixed(0)} FCFA';
   }
+
+ 
 }
 
 void main() {
@@ -235,6 +237,8 @@ class _HomePageState extends State<HomePage> {
 
   List debts = [];
   List clients = [];
+  // track which client groups are expanded
+  final Set<dynamic> _expandedClients = {};
   String boutiqueName = '';
   late final SyncService _syncService;
   StreamSubscription<ConnectivityResult>? _connSub;
@@ -286,6 +290,139 @@ class _HomePageState extends State<HomePage> {
         _triggerSync();
       }
     });
+  }
+
+  Future<void> _showClientActions(dynamic client, dynamic clientId) async {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        final avatar = client != null ? (client['avatar_url'] ?? '') : '';
+        final name = client != null ? (client['name'] ?? 'Client') : 'Client';
+        final number = client != null ? (client['client_number'] ?? '') : '';
+        return DraggableScrollableSheet(
+          initialChildSize: 0.36,
+          minChildSize: 0.2,
+          maxChildSize: 0.9,
+          builder: (context2, sc) {
+            return Container(
+              decoration: BoxDecoration(color: kCard, borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+              child: SingleChildScrollView(
+                controller: sc,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // handle
+                    Center(child: Container(width: 40, height: 4, margin: EdgeInsets.symmetric(vertical: 12), decoration: BoxDecoration(color: Colors.white12, borderRadius: BorderRadius.circular(4)))),
+                    // header with avatar + name + number
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 64,
+                            height: 64,
+                            decoration: BoxDecoration(color: Colors.grey[900], borderRadius: BorderRadius.circular(8)),
+                            child: avatar != null && avatar != ''
+                                ? ClipRRect(borderRadius: BorderRadius.circular(8), child: CachedNetworkImage(imageUrl: avatar, fit: BoxFit.cover))
+                                : Icon(Icons.person, color: kMuted, size: 36),
+                          ),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Text(name.toString(), style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800)),
+                              if (number != null && number.toString().isNotEmpty) SizedBox(height: 6),
+                              if (number != null && number.toString().isNotEmpty) Text(number.toString(), style: TextStyle(color: kMuted)),
+                            ]),
+                          )
+                        ],
+                      ),
+                    ),
+                    Divider(color: Colors.white10),
+                    ListTile(
+                      leading: Icon(Icons.add_circle, color: kAccent),
+                      title: Text('Ajouter une dette', style: TextStyle(color: Colors.white)),
+                      subtitle: Text('Ajouter une dette pour ce client', style: TextStyle(color: kMuted)),
+                      onTap: () async {
+                        Navigator.of(ctx).pop();
+                        dynamic c = client;
+                        if (c == null && clientId != null) {
+                          c = clients.firstWhere((x) => x['id'] == clientId, orElse: () => null);
+                        }
+                        if (c != null) await _addDebtForClient(c);
+                      },
+                    ),
+                    ListTile(
+                      leading: Icon(Icons.copy, color: kMuted),
+                      title: Text('Copier numéro', style: TextStyle(color: Colors.white)),
+                      subtitle: Text('Copier le numéro du client', style: TextStyle(color: kMuted)),
+                      onTap: () async {
+                        Navigator.of(ctx).pop();
+                        final num = client != null ? client['client_number'] ?? '' : '';
+                        if (num != null && num.toString().isNotEmpty) {
+                          await Clipboard.setData(ClipboardData(text: num.toString()));
+                          if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Numéro copié: $num')));
+                        } else {
+                          if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Aucun numéro à copier')));
+                        }
+                      },
+                    ),
+                    SizedBox(height: 12),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _addDebtForClient(dynamic c) async {
+    final amountCtl = TextEditingController();
+    final notesCtl = TextEditingController();
+    DateTime? due;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dlg) => AlertDialog(
+        title: Text('Ajouter dette pour ${c['name'] ?? 'client'}'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: amountCtl, decoration: InputDecoration(labelText: 'Montant'), keyboardType: TextInputType.number),
+              SizedBox(height: 8),
+              Row(children: [
+                Expanded(child: Text(due == null ? 'Échéance: -' : 'Échéance: ${DateFormat('dd/MM/yyyy').format(due!)}')),
+                TextButton(onPressed: () async { final d = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2100)); if (d!=null) { due = d; } setState((){}); }, child: Text('Choisir'))
+              ]),
+              TextField(controller: notesCtl, decoration: InputDecoration(labelText: 'Notes')),
+            ],
+          ),
+        ),
+        actions: [TextButton(onPressed: () => Navigator.of(dlg).pop(false), child: Text('Annuler')), ElevatedButton(onPressed: () => Navigator.of(dlg).pop(true), child: Text('Ajouter'))],
+      ),
+    );
+
+    if (ok == true && amountCtl.text.trim().isNotEmpty) {
+      try {
+        final body = {'client_id': c['id'], 'amount': double.tryParse(amountCtl.text) ?? 0.0, 'due_date': due == null ? null : DateFormat('yyyy-MM-dd').format(due!), 'notes': notesCtl.text};
+        final headers = {'Content-Type': 'application/json', if (widget.ownerPhone.isNotEmpty) 'x-owner': widget.ownerPhone};
+        final res = await http.post(Uri.parse('$apiHost/debts'), headers: headers, body: json.encode(body)).timeout(Duration(seconds: 8));
+        if (res.statusCode == 201) {
+          await fetchDebts();
+          if (mounted) {
+            setState(() { if (c != null && c['id'] != null) _expandedClients.add(c['id']); });
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Dette ajoutée')));
+          }
+        } else {
+          await showDialog(context: context, builder: (ctx) => AlertDialog(title: Text('Erreur'), content: Text('Échec création dette: ${res.statusCode}\n${res.body}'), actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text('OK'))]));
+        }
+      } catch (e) {
+        await showDialog(context: context, builder: (ctx) => AlertDialog(title: Text('Erreur'), content: Text('Erreur création dette: $e'), actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text('OK'))]));
+      }
+    }
   }
 
   Future<void> _triggerSync() async {
@@ -460,7 +597,7 @@ class _HomePageState extends State<HomePage> {
               TextField(controller: amountCtl, decoration: InputDecoration(labelText: 'Montant'), keyboardType: TextInputType.number),
               SizedBox(height: 8),
               Row(children: [
-                Expanded(child: Text(dueDate == null ? 'Échéance: -' : 'Échéance: ${DateFormat.yMd().format(dueDate!)}')),
+                Expanded(child: Text(dueDate == null ? 'Échéance: -' : 'Échéance: ${DateFormat('dd/MM/yyyy').format(dueDate!)}')),
                 TextButton(onPressed: () async { final d = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2100)); if (d!=null) setState((){ dueDate=d; }); }, child: Text('Choisir'))
               ]),
               TextField(controller: notesCtl, decoration: InputDecoration(labelText: 'Notes')),
@@ -480,6 +617,9 @@ class _HomePageState extends State<HomePage> {
         final res = await http.post(Uri.parse('$apiHost/debts'), headers: headers, body: json.encode(body)).timeout(Duration(seconds: 8));
         if (res.statusCode == 201) {
           await fetchDebts();
+          if (mounted && selectedClientId != null) {
+            setState(() { _expandedClients.add(selectedClientId); });
+          }
         } else {
           final bodyText = res.body;
           print('Create debt failed: ${res.statusCode} $bodyText');
@@ -606,7 +746,7 @@ class _HomePageState extends State<HomePage> {
                                     contentPadding: EdgeInsets.zero,
                                     leading: CircleAvatar(backgroundColor: Colors.grey[900], child: Icon(Icons.monetization_on, color: kAccent)),
                                     title: Text(fmtFCFA(p['amount']), style: TextStyle(color: kAccent, fontWeight: FontWeight.w600, fontSize: isSmall ? 13 : 14)),
-                                    subtitle: Text(DateFormat.yMd().add_jm().format(DateTime.parse(p['paid_at'])), style: TextStyle(color: kMuted, fontSize: isSmall ? 11 : 12)),
+                                    subtitle: Text(DateFormat('dd/MM/yyyy HH:mm').format(DateTime.parse(p['paid_at'])), style: TextStyle(color: kMuted, fontSize: isSmall ? 11 : 12)),
                                   );
                                 },
                               ),
@@ -687,7 +827,7 @@ class _HomePageState extends State<HomePage> {
           children: [
             TextField(controller: amountCtl, decoration: InputDecoration(labelText: 'Montant payé'), keyboardType: TextInputType.number),
             SizedBox(height: 8),
-            Row(children: [Expanded(child: Text('Date: ${DateFormat.yMd().format(paidAt)}')), TextButton(onPressed: () async { final d = await showDatePicker(context: context, initialDate: paidAt, firstDate: DateTime(2000), lastDate: DateTime(2100)); if (d!=null) paidAt = d; setState((){}); }, child: Text('Choisir'))])
+            Row(children: [Expanded(child: Text('Date: ${DateFormat('dd/MM/yyyy').format(paidAt)}')), TextButton(onPressed: () async { final d = await showDatePicker(context: context, initialDate: paidAt, firstDate: DateTime(2000), lastDate: DateTime(2100)); if (d!=null) paidAt = d; setState((){}); }, child: Text('Choisir'))])
           ],
         ),
         actions: [TextButton(onPressed: () => Navigator.of(c).pop(false), child: Text('Annuler')), ElevatedButton(onPressed: () => Navigator.of(c).pop(true), child: Text('Ajouter'))],
@@ -746,66 +886,136 @@ class _HomePageState extends State<HomePage> {
             totalRemaining += rem;
           }
 
-          return Container(
-            margin: EdgeInsets.only(bottom: 12, left: 8, right: 8),
-            decoration: BoxDecoration(color: kCard, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.white.withOpacity(0.04))),
-            child: ExpansionTile(
-              tilePadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              collapsedIconColor: kAccent,
-              iconColor: kAccent,
-              leading: Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(color: Colors.grey[900], borderRadius: BorderRadius.circular(4)),
-                child: avatarUrl != null && avatarUrl != ''
-                    ? ClipRRect(borderRadius: BorderRadius.circular(4), child: CachedNetworkImage(imageUrl: avatarUrl, fit: BoxFit.cover))
-                    : Icon(Icons.person_outline, color: kMuted),
-              ),
-              title: Text(clientName.toString().toUpperCase(), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
-              subtitle: Text('${clientDebts.length} dette(s) • Reste: ${fmtFCFA(totalRemaining)}', style: TextStyle(color: kMuted)),
-              children: clientDebts.map<Widget>((d) {
-                final amountVal = double.tryParse(d['amount']?.toString() ?? '0') ?? 0.0;
-                double remainingVal = amountVal;
-                try {
-                  if (d != null && d['remaining'] != null) remainingVal = double.tryParse(d['remaining'].toString()) ?? remainingVal;
-                  else if (d != null && d['total_paid'] != null) remainingVal = amountVal - (double.tryParse(d['total_paid'].toString()) ?? 0.0);
-                } catch (_) {}
-                final bool inProgress = remainingVal < amountVal && remainingVal > 0;
-                final bool isPaid = d['paid'] == true || remainingVal <= 0;
-                final bool statusIsGreen = isPaid || inProgress;
+          // count unpaid debts for this client (remaining > 0)
+          int unpaidCount = 0;
+          for (final d in clientDebts) {
+            final amt2 = double.tryParse(d['amount']?.toString() ?? '0') ?? 0.0;
+            double rem2 = amt2;
+            try {
+              if (d != null && d['remaining'] != null) rem2 = double.tryParse(d['remaining'].toString()) ?? rem2;
+              else if (d != null && d['total_paid'] != null) rem2 = amt2 - (double.tryParse(d['total_paid'].toString()) ?? 0.0);
+            } catch (_) {}
+            if (rem2 > 0) unpaidCount++;
+          }
 
-                return InkWell(
-                  onTap: () => showDebtDetails(d),
+          // Minimalistic client card (expandable)
+          final bool isOpen = _expandedClients.contains(cid);
+          return Card(
+            color: kCard,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            elevation: 0,
+            margin: EdgeInsets.only(bottom: 12, left: 8, right: 8),
+            child: Column(
+              children: [
+                InkWell(
+                  onTap: () => setState(() { if (isOpen) _expandedClients.remove(cid); else _expandedClients.add(cid); }),
+                  onLongPress: () => _showClientActions(client, cid),
                   child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                     child: Row(
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(fmtFCFA(d['amount']), style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-                              if (d['notes'] != null && d['notes'] != '') SizedBox(height: 6),
-                              if (d['notes'] != null && d['notes'] != '') Text(d['notes'], style: TextStyle(color: kMuted, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
-                            ],
-                          ),
-                        ),
-                        Column(children: [
-                          Text('Reste', style: TextStyle(color: kMuted, fontSize: 12)),
-                          SizedBox(height: 6),
-                          Text(fmtFCFA(remainingVal), style: TextStyle(color: (remainingVal <= 0) ? Colors.green : Colors.white, fontWeight: FontWeight.w700)),
-                        ]),
-                        SizedBox(width: 12),
                         Container(
-                          padding: EdgeInsets.all(6),
-                          decoration: BoxDecoration(color: statusIsGreen ? Colors.green.withOpacity(0.12) : Colors.transparent, borderRadius: BorderRadius.circular(6)),
-                          child: Icon(statusIsGreen ? Icons.check_circle : Icons.circle, color: statusIsGreen ? Colors.green : kAccent.withOpacity(0.6), size: 18),
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(color: Colors.grey[900], borderRadius: BorderRadius.circular(6)),
+                          child: avatarUrl != null && avatarUrl != ''
+                              ? ClipRRect(borderRadius: BorderRadius.circular(6), child: CachedNetworkImage(imageUrl: avatarUrl, fit: BoxFit.cover))
+                              : Icon(Icons.person_outline, color: kMuted),
+                        ),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text(clientName.toString().toUpperCase(), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
+                            if (client != null && (client['client_number'] ?? '').toString().isNotEmpty) SizedBox(height: 4),
+                            if (client != null && (client['client_number'] ?? '').toString().isNotEmpty) Text(client['client_number'].toString(), style: TextStyle(color: kMuted, fontSize: 12)),
+                          ]),
+                        ),
+                        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                          Text('${unpaidCount} impayée(s)', style: TextStyle(color: kMuted, fontSize: 12)),
+                          SizedBox(height: 6),
+                          Text(fmtFCFA(totalRemaining), style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                        ]),
+                        SizedBox(width: 8),
+                        AnimatedRotation(
+                          turns: isOpen ? 0.5 : 0.0,
+                          duration: Duration(milliseconds: 200),
+                          child: Icon(Icons.expand_more, color: kMuted),
                         ),
                       ],
                     ),
                   ),
-                );
-              }).toList(),
+                ),
+                if (isOpen)
+                  Column(
+                    children: [
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            ElevatedButton.icon(
+                              onPressed: () async { if (client != null) await _addDebtForClient(client); },
+                              icon: Icon(Icons.add, size: 16, color: Colors.black),
+                              label: Text('Ajouter dette', style: TextStyle(color: Colors.black)),
+                              style: ElevatedButton.styleFrom(backgroundColor: kAccent, padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Divider(color: Colors.white10, height: 1),
+                      ...clientDebts.map<Widget>((d) {
+                        final amountVal = double.tryParse(d['amount']?.toString() ?? '0') ?? 0.0;
+                        double remainingVal = amountVal;
+                        try {
+                          if (d != null && d['remaining'] != null) remainingVal = double.tryParse(d['remaining'].toString()) ?? remainingVal;
+                          else if (d != null && d['total_paid'] != null) remainingVal = amountVal - (double.tryParse(d['total_paid'].toString()) ?? 0.0);
+                        } catch (_) {}
+                        final bool inProgress = remainingVal < amountVal && remainingVal > 0;
+                        final bool isPaid = d['paid'] == true || remainingVal <= 0;
+                        final bool statusIsGreen = isPaid || inProgress;
+                        String dueText = '-';
+                        try {
+                          if (d != null && d['due_date'] != null) {
+                            final dd = DateTime.parse(d['due_date']);
+                            dueText = DateFormat('dd/MM/yyyy').format(dd);
+                          }
+                        } catch (_) {}
+
+                        return InkWell(
+                          onTap: () => showDebtDetails(d),
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(fmtFCFA(d['amount']), style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                                      SizedBox(height: 4),
+                                      Text('Échéance: $dueText', style: TextStyle(color: kMuted, fontSize: 12)),
+                                    ],
+                                  ),
+                                ),
+                                Column(children: [
+                                  Text('Reste', style: TextStyle(color: kMuted, fontSize: 12)),
+                                  SizedBox(height: 6),
+                                  Text(fmtFCFA(remainingVal), style: TextStyle(color: (remainingVal <= 0) ? Colors.green : Colors.white, fontWeight: FontWeight.w700)),
+                                ]),
+                                SizedBox(width: 12),
+                                Container(
+                                  padding: EdgeInsets.all(6),
+                                  decoration: BoxDecoration(color: statusIsGreen ? Colors.green.withOpacity(0.12) : Colors.transparent, borderRadius: BorderRadius.circular(6)),
+                                  child: Icon(statusIsGreen ? Icons.check_circle : Icons.circle, color: statusIsGreen ? Colors.green : kAccent.withOpacity(0.6), size: 18),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ],
+                  ),
+              ],
             ),
           );
         },
@@ -897,7 +1107,7 @@ class _HomePageState extends State<HomePage> {
                                   TextField(controller: amountCtl, decoration: InputDecoration(labelText: 'Montant'), keyboardType: TextInputType.number),
                                   SizedBox(height: 8),
                                   Row(children: [
-                                    Expanded(child: Text(due == null ? 'Échéance: -' : 'Échéance: ${DateFormat.yMd().format(due!)}')),
+                                    Expanded(child: Text(due == null ? 'Échéance: -' : 'Échéance: ${DateFormat('dd/MM/yyyy').format(due!)}')),
                                     TextButton(onPressed: () async { final d = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2100)); if (d!=null) { due = d; } setState((){}); }, child: Text('Choisir'))
                                   ]),
                                   TextField(controller: notesCtl, decoration: InputDecoration(labelText: 'Notes')),
