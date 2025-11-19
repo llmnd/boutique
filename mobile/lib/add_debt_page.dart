@@ -17,7 +17,7 @@ class AddDebtPage extends StatefulWidget {
   _AddDebtPageState createState() => _AddDebtPageState();
 }
 
-class _AddDebtPageState extends State<AddDebtPage> {
+class _AddDebtPageState extends State<AddDebtPage> with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   int? _clientId;
   final TextEditingController _amountCtl = TextEditingController();
@@ -27,6 +27,7 @@ class _AddDebtPageState extends State<AddDebtPage> {
   late AudioService _audioService;
   String? _audioPath;
   bool _isRecording = false;
+  late AnimationController _pulseController;
 
   String get apiHost {
     if (kIsWeb) return 'http://localhost:3000/api';
@@ -40,8 +41,11 @@ class _AddDebtPageState extends State<AddDebtPage> {
   void initState() {
     super.initState();
     _audioService = AudioService();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat(reverse: true);
     
-    // Validate that preselected client exists in the list
     int? validClientId;
     if (widget.preselectedClientId != null && widget.clients.isNotEmpty) {
       final exists = widget.clients.any((c) => c['id'] == widget.preselectedClientId);
@@ -55,6 +59,7 @@ class _AddDebtPageState extends State<AddDebtPage> {
 
   @override
   void dispose() {
+    _pulseController.dispose();
     _audioService.dispose();
     _amountCtl.dispose();
     _notesCtl.dispose();
@@ -66,13 +71,75 @@ class _AddDebtPageState extends State<AddDebtPage> {
     final nameCtl = TextEditingController();
     final ok = await showDialog<bool>(
       context: context,
-      builder: (c) => AlertDialog(
-        title: const Text('Ajouter un client'),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(controller: nameCtl, decoration: const InputDecoration(labelText: 'Nom')),
-          TextField(controller: numberCtl, decoration: const InputDecoration(labelText: 'Numéro (optionnel)')),
-        ]),
-        actions: [TextButton(onPressed: () => Navigator.of(c).pop(false), child: const Text('Annuler')), ElevatedButton(onPressed: () => Navigator.of(c).pop(true), child: const Text('Ajouter'))],
+      barrierColor: Colors.black87,
+      builder: (c) => Dialog(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 500),
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('NOUVEAU CLIENT', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1.5, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)),
+              const SizedBox(height: 32),
+              TextField(
+                controller: nameCtl,
+                autofocus: true,
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w400, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black),
+                decoration: InputDecoration(
+                  labelText: 'Nom',
+                  labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w400, letterSpacing: 0.5),
+                  border: const OutlineInputBorder(borderSide: BorderSide(width: 0.5)),
+                  enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Theme.of(context).brightness == Brightness.dark ? Colors.white24 : Colors.black26, width: 0.5)),
+                  focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black, width: 1)),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                ),
+              ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: numberCtl,
+                keyboardType: TextInputType.phone,
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w400, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black),
+                decoration: InputDecoration(
+                  labelText: 'Numéro (optionnel)',
+                  labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w400, letterSpacing: 0.5),
+                  border: const OutlineInputBorder(borderSide: BorderSide(width: 0.5)),
+                  enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Theme.of(context).brightness == Brightness.dark ? Colors.white24 : Colors.black26, width: 0.5)),
+                  focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black, width: 1)),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                ),
+              ),
+              const SizedBox(height: 32),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(c).pop(false),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                      foregroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54,
+                    ),
+                    child: Text('ANNULER', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1, color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54)),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton(
+                    onPressed: () => Navigator.of(c).pop(true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black,
+                      foregroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.black : Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
+                    ),
+                    child: Text('AJOUTER', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1, color: Theme.of(context).brightness == Brightness.dark ? Colors.black : Colors.white)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
 
@@ -83,31 +150,28 @@ class _AddDebtPageState extends State<AddDebtPage> {
         setState(() => _saving = true);
         final res = await http.post(Uri.parse('$apiHost/clients'), headers: headers, body: json.encode(body)).timeout(const Duration(seconds: 8));
         if (res.statusCode == 201) {
-            try {
+          try {
             final created = json.decode(res.body);
             setState(() {
-              // insert created client at the top so it's visible, avoid duplicates by id
               if (created is Map && created['id'] != null) {
                 final createdId = created['id'].toString();
                 final exists = widget.clients.indexWhere((c) => c['id']?.toString() == createdId);
                 if (exists == -1) {
                   widget.clients.insert(0, created);
                 } else {
-                  widget.clients[exists] = created; // update existing
+                  widget.clients[exists] = created;
                 }
                 _clientId = created['id'];
               }
             });
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Client ajouté')));
+            _showMinimalSnackbar('Client ajouté');
           } catch (_) {
-            // fallback: reload clients from parent won't happen here; just inform user
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Client ajouté')));
+            _showMinimalSnackbar('Client ajouté');
           }
         } else {
           final bodyText = res.body;
           final lower = bodyText.toLowerCase();
           final isDuplicate = res.statusCode == 409 || lower.contains('duplicate') || lower.contains('already exists') || lower.contains('unique');
-          // If server indicates duplicate OR even if it fails with a DB error, try to find existing by number
           if (numberCtl.text.trim().isNotEmpty) {
             try {
               final headersGet = {'Content-Type': 'application/json', if (widget.ownerPhone.isNotEmpty) 'x-owner': widget.ownerPhone};
@@ -116,17 +180,7 @@ class _AddDebtPageState extends State<AddDebtPage> {
                 final list = json.decode(getRes.body) as List;
                 final found = list.firstWhere((c) => (c['client_number'] ?? '').toString() == numberCtl.text.trim(), orElse: () => null);
                 if (found != null) {
-                  // Show clear message that the user exists and offer to select
-                  final choose = await showDialog<bool>(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                            title: const Text('Utilisateur existant'),
-                            content: Text('Un utilisateur existe déjà avec ce numéro (${found['name']}). Voulez-vous le sélectionner ?'),
-                            actions: [
-                              TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Non')),
-                              ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Oui'))
-                            ],
-                          ));
+                  final choose = await _showExistingClientDialog(found);
                   if (choose == true) {
                     setState(() {
                       final foundId = found['id']?.toString();
@@ -138,31 +192,135 @@ class _AddDebtPageState extends State<AddDebtPage> {
                       }
                       _clientId = found['id'];
                     });
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Client sélectionné : ${found['name']}')));
+                    _showMinimalSnackbar('Client sélectionné');
                     return;
-                  } else {
-                    // user chose not to select existing; if server returned duplicate, show friendly message
-                    if (isDuplicate) {
-                      await showDialog(context: context, builder: (ctx) => AlertDialog(title: const Text('Info'), content: const Text('Cet utilisateur existe.'), actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('OK'))]));
-                      return;
-                    }
+                  } else if (isDuplicate) {
+                    await _showMinimalDialog('Ce client existe déjà');
+                    return;
                   }
                 }
               }
             } catch (_) {}
           }
-          await showDialog(context: context, builder: (ctx) => AlertDialog(title: const Text('Erreur'), content: Text('Échec création client: ${res.statusCode}\n${res.body}'), actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('OK'))]));
+          await _showMinimalDialog('Erreur lors de la création');
         }
       } catch (e) {
-        await showDialog(context: context, builder: (ctx) => AlertDialog(title: const Text('Erreur'), content: Text('Erreur création client: $e'), actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('OK'))]));
+        await _showMinimalDialog('Erreur réseau');
       } finally {
         if (mounted) setState(() => _saving = false);
       }
     }
   }
 
+  Future<bool?> _showExistingClientDialog(Map found) {
+    return showDialog<bool>(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
+        contentPadding: const EdgeInsets.all(32),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('CLIENT EXISTANT', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1.5, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)),
+            const SizedBox(height: 20),
+            Text('Un client existe avec ce numéro : ${found['name']}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w300, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  style: TextButton.styleFrom(foregroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54),
+                  child: Text('NON', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1, color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54)),
+                ),
+                const SizedBox(width: 12),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black,
+                    foregroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.black : Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
+                  ),
+                  child: Text('SÉLECTIONNER', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1, color: Theme.of(context).brightness == Brightness.dark ? Colors.black : Colors.white)),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showMinimalDialog(String message) {
+    return showDialog(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
+        contentPadding: const EdgeInsets.all(32),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(message, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w300, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)),
+            const SizedBox(height: 24),
+            Align(
+              alignment: Alignment.centerRight,
+              child: ElevatedButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black,
+                  foregroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.black : Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
+                ),
+                child: Text('OK', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1, color: Theme.of(context).brightness == Brightness.dark ? Colors.black : Colors.white)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showMinimalSnackbar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, letterSpacing: 1, color: Colors.white)),
+        backgroundColor: Colors.black,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
+        margin: const EdgeInsets.all(20),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
   Future<void> _pickDue() async {
-    final d = await showDatePicker(context: context, initialDate: _due ?? DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2100));
+    final d = await showDatePicker(
+      context: context,
+      initialDate: _due ?? DateTime.now(),
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2100),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: Colors.black,
+              onPrimary: Colors.white,
+              surface: Colors.white,
+              onSurface: Colors.black,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
     if (d != null) setState(() => _due = d);
   }
 
@@ -170,9 +328,9 @@ class _AddDebtPageState extends State<AddDebtPage> {
     final ok = await _audioService.startRecording();
     if (ok) {
       setState(() => _isRecording = true);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enregistrement en cours...')));
+      _showMinimalSnackbar('Enregistrement démarré');
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Impossible de démarrer l\'enregistrement')));
+      _showMinimalSnackbar('Erreur d\'enregistrement');
     }
   }
 
@@ -183,10 +341,10 @@ class _AddDebtPageState extends State<AddDebtPage> {
         _isRecording = false;
         _audioPath = path;
       });
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enregistrement sauvegardé')));
+      _showMinimalSnackbar('Enregistrement sauvegardé');
     } else {
       setState(() => _isRecording = false);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Erreur lors de l\'enregistrement')));
+      _showMinimalSnackbar('Erreur d\'enregistrement');
     }
   }
 
@@ -200,14 +358,14 @@ class _AddDebtPageState extends State<AddDebtPage> {
     if (_audioPath != null) {
       await _audioService.deleteAudio(_audioPath!);
       setState(() => _audioPath = null);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enregistrement supprimé')));
+      _showMinimalSnackbar('Enregistrement supprimé');
     }
   }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     if (_clientId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Veuillez choisir un client')));
+      _showMinimalSnackbar('Veuillez choisir un client');
       return;
     }
     setState(() => _saving = true);
@@ -222,12 +380,13 @@ class _AddDebtPageState extends State<AddDebtPage> {
       final headers = {'Content-Type': 'application/json', if (widget.ownerPhone.isNotEmpty) 'x-owner': widget.ownerPhone};
       final res = await http.post(Uri.parse('$apiHost/debts'), headers: headers, body: json.encode(body)).timeout(const Duration(seconds: 8));
       if (res.statusCode == 201) {
+        _showMinimalSnackbar('Dette créée');
         Navigator.of(context).pop(true);
       } else {
-        await showDialog(context: context, builder: (ctx) => AlertDialog(title: const Text('Erreur'), content: Text('Échec création dette: ${res.statusCode}\n${res.body}'), actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('OK'))]));
+        await _showMinimalDialog('Erreur lors de la création');
       }
     } catch (e) {
-      await showDialog(context: context, builder: (ctx) => AlertDialog(title: const Text('Erreur'), content: Text('Erreur création dette: $e'), actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('OK'))]));
+      await _showMinimalDialog('Erreur réseau');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -235,210 +394,301 @@ class _AddDebtPageState extends State<AddDebtPage> {
 
   @override
   Widget build(BuildContext context) {
-    final accent = Theme.of(context).colorScheme.primary;
-    final cardColor = Theme.of(context).cardColor;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final textColorSecondary = isDark ? Colors.white70 : Colors.black54;
+    final textColorTertiary = isDark ? Colors.white38 : Colors.black38;
+    final textColorHint = isDark ? Colors.white12 : Colors.black12;
+    final borderColor = isDark ? Colors.white24 : Colors.black26;
+    
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
-        title: const Text('Ajouter une dette', style: TextStyle(fontWeight: FontWeight.w700)),
+        backgroundColor: Colors.transparent,
+        leading: IconButton(
+          icon: Icon(Icons.close, color: textColor, size: 24),
+          onPressed: () => Navigator.of(context).pop(false),
+        ),
+        title: Text(
+          'NOUVELLE DETTE',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 2,
+            color: textColor,
+          ),
+        ),
+        centerTitle: true,
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 640),
-              child: Card(
-                color: cardColor,
-                elevation: 6,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                      // Client selector
-                      Text('Client', style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color, fontSize: 13)),
-                      const SizedBox(height: 8),
-                      Row(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 600),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: DropdownButtonFormField<int>(
-                              initialValue: _clientId,
-                              isExpanded: true,
-                              items: widget.clients.map<DropdownMenuItem<int>>((cl) {
-                                final clientNumber = (cl['client_number'] ?? '').toString().isNotEmpty ? ' (${cl['client_number']})' : '';
-                                return DropdownMenuItem(
-                                  value: cl['id'],
-                                  child: Text('${cl['name'] ?? 'Client'}$clientNumber'),
-                                );
-                              }).toList(),
-                              onChanged: (v) => setState(() => _clientId = v),
-                              decoration: InputDecoration(
-                                filled: true,
-                                fillColor: Theme.of(context).inputDecorationTheme.fillColor ?? Theme.of(context).scaffoldBackgroundColor,
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                              ),
+                          // Amount Section
+                          Text('MONTANT', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1.5, color: textColorSecondary)),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _amountCtl,
+                            keyboardType: TextInputType.number,
+                            autofocus: true,
+                            style: TextStyle(
+                              fontSize: 30,
+                              fontWeight: FontWeight.w200,
+                              color: textColor,
+                              height: 1,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: '0',
+                              hintStyle: TextStyle(fontSize: 30, fontWeight: FontWeight.w200, color: textColorHint),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.zero,
+                              suffix: Text(' FCFA', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w300, color: textColorSecondary)),
+                            ),
+                            validator: (v) => (v == null || v.trim().isEmpty) ? 'Requis' : null,
+                          ),
+                          const SizedBox(height: 8),
+                          Container(height: 0.5, color: textColorHint),
+                          
+                          const SizedBox(height: 48),
+
+                          // Client Section
+                          Text('CLIENT', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1.5, color: textColorSecondary)),
+                          const SizedBox(height: 16),
+                          DropdownButtonFormField<int>(
+                            value: _clientId,
+                            isExpanded: true,
+                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w400, color: textColor),
+                            items: widget.clients.map<DropdownMenuItem<int>>((cl) {
+                              final clientNumber = (cl['client_number'] ?? '').toString().isNotEmpty 
+                                  ? ' · ${cl['client_number']}' 
+                                  : '';
+                              return DropdownMenuItem(
+                                value: cl['id'],
+                                child: Text('${cl['name'] ?? 'Client'}$clientNumber', style: TextStyle(color: textColor)),
+                              );
+                            }).toList(),
+                            onChanged: (v) => setState(() => _clientId = v),
+                            decoration: InputDecoration(
+                              border: const OutlineInputBorder(borderSide: BorderSide(width: 0.5)),
+                              enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: borderColor, width: 0.5)),
+                              focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: textColor, width: 1)),
+                              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                             ),
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(height: 12),
                           SizedBox(
-                            height: 48,
-                            child: ElevatedButton.icon(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
                               onPressed: _saving ? null : _createClientInline,
-                              icon: Icon(Icons.person_add, size: 18, color: Theme.of(context).elevatedButtonTheme.style?.foregroundColor?.resolve({}) ?? Colors.white),
-                              label: Text('', style: TextStyle(color: Theme.of(context).elevatedButtonTheme.style?.foregroundColor?.resolve({}) ?? Colors.white)),
-                              style: ElevatedButton.styleFrom(backgroundColor: accent, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                            ),
-                          )
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Amount field (large)
-                      Text('Montant', style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color, fontSize: 13)),
-                      const SizedBox(height: 8),
-                      TextFormField(
-                        controller: _amountCtl,
-                        keyboardType: TextInputType.number,
-                        style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: Theme.of(context).textTheme.displayLarge?.color),
-                        decoration: InputDecoration(
-                          hintText: '0',
-                          hintStyle: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.3), fontSize: 28),
-                          filled: true,
-                          fillColor: Theme.of(context).inputDecorationTheme.fillColor ?? Theme.of(context).scaffoldBackgroundColor,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-                        ),
-                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Entrez un montant' : null,
-                        autofocus: true,
-                      ),
-                      const SizedBox(height: 14),
-
-                      // Due date & quick info
-                      Row(
-                        children: [
-                          Expanded(child: Text(_due == null ? 'Date Échéance : Aucune' : 'Date Échéance : ${DateFormat('dd/MM/yyyy').format(_due!)}', style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color))),
-                          TextButton(onPressed: _pickDue, child: Text('Choisir', style: TextStyle(color: accent)))
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-
-                      // Audio Recording
-                      Text('Enregistrement audio (optionnel)', style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color, fontSize: 13)),
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).inputDecorationTheme.fillColor ?? Theme.of(context).scaffoldBackgroundColor,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Column(
-                          children: [
-                            if (_audioPath == null)
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(_isRecording ? '🔴 Enregistrement en cours...' : '🎤 Pas d\'enregistrement', style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color)),
-                                  ),
-                                  ElevatedButton(
-                                    onPressed: _saving ? null : (_isRecording ? _stopRecording : _startRecording),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: _isRecording ? Colors.red : accent,
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                    ),
-                                    child: Text(_isRecording ? 'Arrêter' : 'Démarrer', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.black)),
-                                  ),
-                                ],
-                              )
-                            else
-                              Row(
-                                children: [
-                                  const Expanded(
-                                    child: Text('✅ Enregistrement sauvegardé', style: TextStyle(color: Colors.green)),
-                                  ),
-                                  ElevatedButton.icon(
-                                    onPressed: _saving ? null : _playAudio,
-                                    icon: const Icon(Icons.play_arrow, size: 16),
-                                    label: const Text('Écouter', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: accent,
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  IconButton(
-                                    icon: const Icon(Icons.delete, size: 18, color: Colors.red),
-                                    onPressed: _saving ? null : _deleteAudio,
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(),
-                                  ),
-                                ],
+                              icon: Icon(Icons.person_add_outlined, size: 18, color: textColor),
+                              label: Text('AJOUTER UN CLIENT', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1, color: textColor)),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                side: BorderSide(color: borderColor, width: 0.5),
+                                foregroundColor: textColor,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
                               ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-
-                      // Notes
-                      Text('Notes (optionnel)', style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color, fontSize: 13)),
-                      const SizedBox(height: 8),
-                      TextFormField(
-                        controller: _notesCtl,
-                        maxLines: 3,
-                        decoration: InputDecoration(
-                          hintText: 'Ex: 1 kg de sucre',
-                          filled: true,
-                          fillColor: Theme.of(context).inputDecorationTheme.fillColor ?? Theme.of(context).scaffoldBackgroundColor,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                        ),
-                      ),
-
-                      const SizedBox(height: 20),
-                      Divider(color: Theme.of(context).dividerColor),
-
-                      // Actions
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: _saving ? null : _submit,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: accent,
-                                padding: const EdgeInsets.symmetric(vertical: 14),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                elevation: 0,
-                              ),
-                              child: _saving
-                                  ? SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Theme.of(context).colorScheme.onPrimary, strokeWidth: 2))
-                                  : const Text('Enregistrer', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.black)),
                             ),
                           ),
+
+                          const SizedBox(height: 48),
+
+                          // Due Date Section
+                          Text('DATE D\'ÉCHÉANCE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1.5, color: textColorSecondary)),
+                          const SizedBox(height: 16),
+                          InkWell(
+                            onTap: _pickDue,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: borderColor, width: 0.5),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    _due == null ? 'Aucune échéance' : DateFormat('dd/MM/yyyy').format(_due!),
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w400,
+                                      color: _due == null ? textColorTertiary : textColor,
+                                    ),
+                                  ),
+                                  Icon(Icons.calendar_today_outlined, size: 18, color: textColorSecondary),
+                                ],
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 48),
+
+                          // Notes Section
+                          Text('NOTES (OPTIONNEL)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1.5, color: textColorSecondary)),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _notesCtl,
+                            maxLines: 4,
+                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w400, color: textColor),
+                            decoration: InputDecoration(
+                              hintText: 'Ex: 1 kg de sucre, 2 pains',
+                              hintStyle: TextStyle(fontSize: 14, fontWeight: FontWeight.w300, color: borderColor),
+                              border: const OutlineInputBorder(borderSide: BorderSide(width: 0.5)),
+                              enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: borderColor, width: 0.5)),
+                              focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: textColor, width: 1)),
+                              contentPadding: EdgeInsets.all(16),
+                            ),
+                          ),
+
+                          const SizedBox(height: 48),
+
+                          // Audio Section
+                          Text('NOTE VOCALE (OPTIONNEL)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1.5, color: textColorSecondary)),
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: textColorHint, width: 0.5),
+                            ),
+                            child: _audioPath == null
+                                ? Column(
+                                    children: [
+                                      if (_isRecording)
+                                        FadeTransition(
+                                          opacity: _pulseController,
+                                          child: const Row(
+                                            children: [
+                                              Icon(Icons.fiber_manual_record, size: 12, color: Colors.red),
+                                              SizedBox(width: 12),
+                                              Text('ENREGISTREMENT EN COURS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, letterSpacing: 1)),
+                                            ],
+                                          ),
+                                        )
+                                      else
+                                        Row(
+                                          children: [
+                                            Icon(Icons.mic_none_outlined, size: 18, color: textColorHint),
+                                            const SizedBox(width: 12),
+                                            Text('Aucun enregistrement', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w300, color: textColorTertiary)),
+                                          ],
+                                        ),
+                                      const SizedBox(height: 16),
+                                        SizedBox(
+                                        width: double.infinity,
+                                        child: OutlinedButton(
+                                          onPressed: _saving ? null : (_isRecording ? _stopRecording : _startRecording),
+                                          style: OutlinedButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(vertical: 14),
+                                            side: BorderSide(color: _isRecording ? Colors.red : borderColor, width: 0.5),
+                                            foregroundColor: _isRecording ? Colors.red : textColor,
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
+                                          ),
+                                          child: Text(
+                                            _isRecording ? 'ARRÊTER' : 'DÉMARRER',
+                                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                    : Column(
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Icon(Icons.check_circle_outline, size: 18, color: textColor),
+                                          const SizedBox(width: 12),
+                                          Text('Enregistrement sauvegardé', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w400, color: textColor)),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: OutlinedButton(
+                                              onPressed: _saving ? null : _playAudio,
+                                              style: OutlinedButton.styleFrom(
+                                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                                side: BorderSide(color: borderColor, width: 0.5),
+                                                foregroundColor: textColor,
+                                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
+                                              ),
+                                              child: Text('ÉCOUTER', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1, color: textColor)),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          OutlinedButton(
+                                            onPressed: _saving ? null : _deleteAudio,
+                                            style: OutlinedButton.styleFrom(
+                                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                              side: const BorderSide(color: Colors.red, width: 0.5),
+                                              foregroundColor: Colors.red,
+                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
+                                            ),
+                                            child: const Icon(Icons.delete_outline, size: 18),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                          ),
+
+                          const SizedBox(height: 80),
                         ],
                       ),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        width: double.infinity,
-                        child: TextButton(
-                          onPressed: _saving ? null : () => Navigator.of(context).pop(false),
-                          child: Text('Annuler', style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color)),
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
                   ),
                 ),
               ),
-            ),
+
+              // Fixed Bottom Button
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).scaffoldBackgroundColor,
+                  border: const Border(top: BorderSide(color: Colors.black12, width: 0.5)),
+                ),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 600),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _saving ? null : _submit,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: isDark ? Colors.white : Colors.black,
+                          foregroundColor: isDark ? Colors.black : Colors.white,
+                          disabledBackgroundColor: isDark ? Colors.white24 : Colors.black26,
+                          disabledForegroundColor: isDark ? Colors.black38 : Colors.white54,
+                          padding: const EdgeInsets.symmetric(vertical: 18),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
+                        ),
+                        child: _saving
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                              )
+                            : const Text(
+                                'ENREGISTRER LA DETTE',
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 1.5),
+                              ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),

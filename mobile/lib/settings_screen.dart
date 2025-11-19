@@ -66,15 +66,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     await _settings.setRates(m);
 
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('Taux enregistrés')));
+    _showMinimalSnackbar('Taux enregistrés');
   }
 
   Future<void> _saveProfile() async {
     if (_firstNameCtl.text.isEmpty || _lastNameCtl.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Le prénom et le nom sont obligatoires')),
-      );
+      _showMinimalSnackbar('Le prénom et le nom sont obligatoires');
       return;
     }
 
@@ -109,184 +106,501 @@ class _SettingsScreenState extends State<SettingsScreen> {
         );
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Profil enregistré avec succès')),
-          );
+          _showMinimalSnackbar('Profil enregistré avec succès');
         }
       } else {
         final errorMsg = res.body.isNotEmpty ? json.decode(res.body)['message'] ?? 'Erreur serveur' : 'Erreur serveur';
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Erreur: $errorMsg')),
-          );
+          _showMinimalSnackbar('Erreur: $errorMsg');
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur: $e')),
-        );
+        _showMinimalSnackbar('Erreur: $e');
       }
     } finally {
       if (mounted) setState(() => _isSavingProfile = false);
     }
   }
 
-  // -------------------------------------------------------------------
+  void _showMinimalSnackbar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message.toUpperCase(),
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            letterSpacing: 1,
+            color: Colors.white,
+          ),
+        ),
+        backgroundColor: Colors.black,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
+        margin: const EdgeInsets.all(20),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final textColorSecondary = isDark ? Colors.white70 : Colors.black54;
+    final borderColor = isDark ? Colors.white24 : Colors.black26;
+
     return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text("Paramètres"),
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        leading: IconButton(
+          icon: Icon(Icons.close, color: textColor, size: 24),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text(
+          'PARAMÈTRES',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 2,
+            color: textColor,
+          ),
+        ),
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-
-              // ---------------------- PROFIL ----------------------------
-              _sectionCard(
-                title: "Votre profil",
-                description: "Modifiez vos informations personnelles et votre boutique",
-                child: Column(
-                  children: [
-                    TextField(
-                      controller: _firstNameCtl,
-                      decoration: InputDecoration(
-                        labelText: 'Prénom',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              // PROFIL SECTION
+              Text(
+                'PROFIL',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.5,
+                  color: textColorSecondary,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  border: Border.all(color: borderColor, width: 0.5),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'INFORMATIONS PERSONNELLES',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1.5,
+                          color: textColorSecondary,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _lastNameCtl,
-                      decoration: InputDecoration(
-                        labelText: 'Nom',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      const SizedBox(height: 24),
+                      TextField(
+                        controller: _firstNameCtl,
+                        style: TextStyle(color: textColor, fontSize: 15),
+                        decoration: InputDecoration(
+                          labelText: 'Prénom',
+                          labelStyle: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w400,
+                            color: textColorSecondary,
+                          ),
+                          border: const OutlineInputBorder(borderSide: BorderSide(width: 0.5)),
+                          enabledBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: borderColor, width: 0.5),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: textColor, width: 1),
+                          ),
+                          contentPadding: const EdgeInsets.all(16),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _shopNameCtl,
-                      decoration: InputDecoration(
-                        labelText: 'Nom de la boutique',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: _lastNameCtl,
+                        style: TextStyle(color: textColor, fontSize: 15),
+                        decoration: InputDecoration(
+                          labelText: 'Nom',
+                          labelStyle: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w400,
+                            color: textColorSecondary,
+                          ),
+                          border: const OutlineInputBorder(borderSide: BorderSide(width: 0.5)),
+                          enabledBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: borderColor, width: 0.5),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: textColor, width: 1),
+                          ),
+                          contentPadding: const EdgeInsets.all(16),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _phoneCtl,
-                      readOnly: true,
-                      decoration: InputDecoration(
-                        labelText: 'Numéro de téléphone',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                        suffixIcon: const Icon(Icons.lock_outline),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: _shopNameCtl,
+                        style: TextStyle(color: textColor, fontSize: 15),
+                        decoration: InputDecoration(
+                          labelText: 'Nom de la boutique',
+                          labelStyle: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w400,
+                            color: textColorSecondary,
+                          ),
+                          border: const OutlineInputBorder(borderSide: BorderSide(width: 0.5)),
+                          enabledBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: borderColor, width: 0.5),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: textColor, width: 1),
+                          ),
+                          contentPadding: const EdgeInsets.all(16),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _isSavingProfile ? null : _saveProfile,
-                        child: _isSavingProfile
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Text("Enregistrer le profil"),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: _phoneCtl,
+                        readOnly: true,
+                        style: TextStyle(color: textColorSecondary, fontSize: 15),
+                        decoration: InputDecoration(
+                          labelText: 'Numéro de téléphone',
+                          labelStyle: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w400,
+                            color: textColorSecondary,
+                          ),
+                          border: const OutlineInputBorder(borderSide: BorderSide(width: 0.5)),
+                          enabledBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: borderColor, width: 0.5),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: textColorSecondary, width: 1),
+                          ),
+                          contentPadding: const EdgeInsets.all(16),
+                        ),
                       ),
-                    )
-                  ],
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton(
+                          onPressed: _isSavingProfile ? null : _saveProfile,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isDark ? Colors.white : Colors.black,
+                            foregroundColor: isDark ? Colors.black : Colors.white,
+                            disabledBackgroundColor: isDark ? Colors.white24 : Colors.black26,
+                            disabledForegroundColor: isDark ? Colors.black38 : Colors.white54,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
+                          ),
+                          child: _isSavingProfile
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                )
+                              : Text(
+                                  'ENREGISTRER LE PROFIL',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 1.5,
+                                    color: isDark ? Colors.black : Colors.white,
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
 
-              // ---------------------- THEME ----------------------------
-              _sectionCard(
-                title: "Thème",
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      _settings.lightMode ? "Mode clair" : "Mode sombre",
-                      style: const TextStyle(fontSize: 16),
-                    ),
-                    Switch(
-                      value: _settings.lightMode,
-                      onChanged: (v) => _settings.setLightMode(v),
-                    ),
-                  ],
+              const SizedBox(height: 32),
+
+              // APPARENCE SECTION
+              Text(
+                'APPARENCE',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.5,
+                  color: textColorSecondary,
                 ),
               ),
-
-              // ---------------------- LANGUE ----------------------------
-              _sectionCard(
-                title: "Langue",
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text("Actuelle : ${_settings.locale}"),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 8,
-                      children: [
-                        _pillButton("Français", () => _settings.setLocale("fr_FR")),
-                        _pillButton("English", () => _settings.setLocale("en_US")),
-                      ],
-                    ),
-                  ],
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  border: Border.all(color: borderColor, width: 0.5),
                 ),
-              ),
-
-              // ---------------------- DEVISE ----------------------------
-              _sectionCard(
-                title: "Devise",
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text("Actuelle : ${_settings.currency}"),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _pillButton("XOF (FCFA)", () => _settings.setCurrency("XOF")),
-                        _pillButton("EUR (€)", () => _settings.setCurrency("EUR")),
-                        _pillButton("USD (\$)", () => _settings.setCurrency("USD")),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              // ---------------------- TAUX ----------------------------
-              _sectionCard(
-                title: "Taux de change",
-                description: "Définissez les taux pour convertir les montants en autres devises",
-                child: Column(
-                  children: [
-                    _simpleRateInput("1 EUR = ? XOF", _eurCtl),
-                    const SizedBox(height: 12),
-                    _simpleRateInput("1 USD = ? XOF", _usdCtl),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _saveRates,
-                        child: const Text("Enregistrer les taux"),
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'THÈME',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1.5,
+                          color: textColorSecondary,
+                        ),
                       ),
-                    )
-                  ],
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            _settings.lightMode ? 'MODE CLAIR' : 'MODE SOMBRE',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w400,
+                              color: textColor,
+                            ),
+                          ),
+                          Switch(
+                            value: _settings.lightMode,
+                            onChanged: (v) => _settings.setLightMode(v),
+                            activeColor: isDark ? Colors.white : Colors.black,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
+
+              const SizedBox(height: 32),
+
+              // LANGUE SECTION
+              Text(
+                'LANGUE',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.5,
+                  color: textColorSecondary,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  border: Border.all(color: borderColor, width: 0.5),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'LANGUE DE L\'APPLICATION',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1.5,
+                          color: textColorSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Actuelle : ${_settings.locale.toUpperCase()}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w400,
+                          color: textColor,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          _languageButton('FRANÇAIS', 'fr_FR'),
+                          const SizedBox(width: 12),
+                          _languageButton('ENGLISH', 'en_US'),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 32),
+
+              // DEVISE SECTION
+              Text(
+                'DEVISE',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.5,
+                  color: textColorSecondary,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  border: Border.all(color: borderColor, width: 0.5),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'DEVISE PRINCIPALE',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1.5,
+                          color: textColorSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Actuelle : ${_settings.currency}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w400,
+                          color: textColor,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          _currencyButton('XOF', 'XOF'),
+                          const SizedBox(width: 12),
+                          _currencyButton('EUR', 'EUR'),
+                          const SizedBox(width: 12),
+                          _currencyButton('USD', 'USD'),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 32),
+
+              // TAUX DE CHANGE SECTION
+              Text(
+                'TAUX DE CHANGE',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.5,
+                  color: textColorSecondary,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  border: Border.all(color: borderColor, width: 0.5),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'CONVERSION DE DEVISES',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1.5,
+                          color: textColorSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      TextField(
+                        controller: _eurCtl,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        style: TextStyle(color: textColor, fontSize: 15),
+                        decoration: InputDecoration(
+                          labelText: '1 EUR = ? XOF',
+                          labelStyle: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w400,
+                            color: textColorSecondary,
+                          ),
+                          border: const OutlineInputBorder(borderSide: BorderSide(width: 0.5)),
+                          enabledBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: borderColor, width: 0.5),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: textColor, width: 1),
+                          ),
+                          contentPadding: const EdgeInsets.all(16),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: _usdCtl,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        style: TextStyle(color: textColor, fontSize: 15),
+                        decoration: InputDecoration(
+                          labelText: '1 USD = ? XOF',
+                          labelStyle: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w400,
+                            color: textColorSecondary,
+                          ),
+                          border: const OutlineInputBorder(borderSide: BorderSide(width: 0.5)),
+                          enabledBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: borderColor, width: 0.5),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: textColor, width: 1),
+                          ),
+                          contentPadding: const EdgeInsets.all(16),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton(
+                          onPressed: _saveRates,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isDark ? Colors.white : Colors.black,
+                            foregroundColor: isDark ? Colors.black : Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
+                          ),
+                          child: Text(
+                            'ENREGISTRER LES TAUX',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 1.5,
+                              color: isDark ? Colors.black : Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 40),
             ],
           ),
         ),
@@ -294,56 +608,73 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // -------------------------------------------------------------------
-
-  Widget _sectionCard({required String title, String? description, required Widget child}) {
-    return Card(
-      elevation: 2,
-      margin: const EdgeInsets.only(bottom: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title,
-                style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w600,
-                )),
-            if (description != null) ...[
-              const SizedBox(height: 6),
-              Text(description, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-            ],
-            const SizedBox(height: 14),
-            child,
-          ],
+  Widget _languageButton(String label, String value) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final isSelected = _settings.locale == value;
+    
+    return Expanded(
+      child: Container(
+        height: 40,
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: isSelected ? textColor : Theme.of(context).dividerColor,
+            width: isSelected ? 1 : 0.5,
+          ),
+        ),
+        child: TextButton(
+          onPressed: () => _settings.setLocale(value),
+          style: TextButton.styleFrom(
+            foregroundColor: textColor,
+            padding: EdgeInsets.zero,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1,
+              color: textColor,
+            ),
+          ),
         ),
       ),
     );
   }
 
-  Widget _simpleRateInput(String label, TextEditingController ctrl) {
-    return TextField(
-      controller: ctrl,
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: "Ex: 655.957",
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+  Widget _currencyButton(String label, String value) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final isSelected = _settings.currency == value;
+    
+    return Expanded(
+      child: Container(
+        height: 40,
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: isSelected ? textColor : Theme.of(context).dividerColor,
+            width: isSelected ? 1 : 0.5,
+          ),
+        ),
+        child: TextButton(
+          onPressed: () => _settings.setCurrency(value),
+          style: TextButton.styleFrom(
+            foregroundColor: textColor,
+            padding: EdgeInsets.zero,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1,
+              color: textColor,
+            ),
+          ),
+        ),
       ),
-    );
-  }
-
-  Widget _pillButton(String label, VoidCallback onTap) {
-    return ElevatedButton(
-      style: ElevatedButton.styleFrom(
-        shape: const StadiumBorder(),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-      ),
-      onPressed: onTap,
-      child: Text(label),
     );
   }
 }
