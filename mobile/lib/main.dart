@@ -34,10 +34,10 @@ String fmtFCFA(dynamic v) {
     return AppSettings().formatCurrency(v);
   } catch (_) {
     if (v == null) return '-';
-    if (v is num) return '${v.toStringAsFixed(0)} FCFA';
+    if (v is num) return '${v.toStringAsFixed(0)} F';
     final parsed = num.tryParse(v.toString());
-    if (parsed == null) return '${v.toString()} FCFA';
-    return '${parsed.toStringAsFixed(0)} FCFA';
+    if (parsed == null) return '${v.toString()} F';
+    return '${parsed.toStringAsFixed(0)} F';
   }
 }
 
@@ -183,7 +183,12 @@ class _HomePageState extends State<HomePage> {
   String _searchQuery = '';
   bool _isSearching = false;
   bool _showTotalCard = true;
+  bool _showAmountFilter = false;
+  double _minDebtAmount = 0.0;
+  double _maxDebtAmount = 0.0;
   final TextEditingController _searchController = TextEditingController();
+  final TextEditingController _amountMinController = TextEditingController();
+  final TextEditingController _amountMaxController = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
   Timer? _debounceTimer;
   final Set<dynamic> _expandedClients = {};
@@ -235,6 +240,8 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     _searchController.dispose();
+    _amountMinController.dispose();
+    _amountMaxController.dispose();
     _searchFocus.dispose();
     _debounceTimer?.cancel();
     _connSub?.cancel();
@@ -617,6 +624,50 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> _saveDebtsLocally() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final debtsJson = json.encode(debts);
+      await prefs.setString('debts_${widget.ownerPhone}', debtsJson);
+    } catch (e) {
+      print('Error saving debts locally: $e');
+    }
+  }
+
+  Future<void> _loadDebtsLocally() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final debtsJson = prefs.getString('debts_${widget.ownerPhone}');
+      if (debtsJson != null && debtsJson.isNotEmpty) {
+        setState(() => debts = List.from(json.decode(debtsJson) as List));
+      }
+    } catch (e) {
+      print('Error loading debts locally: $e');
+    }
+  }
+
+  Future<void> _saveClientsLocally() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final clientsJson = json.encode(clients);
+      await prefs.setString('clients_${widget.ownerPhone}', clientsJson);
+    } catch (e) {
+      print('Error saving clients locally: $e');
+    }
+  }
+
+  Future<void> _loadClientsLocally() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final clientsJson = prefs.getString('clients_${widget.ownerPhone}');
+      if (clientsJson != null && clientsJson.isNotEmpty) {
+        setState(() => clients = List.from(json.decode(clientsJson) as List));
+      }
+    } catch (e) {
+      print('Error loading clients locally: $e');
+    }
+  }
+
   Future fetchClients() async {
     try {
       final headers = {
@@ -766,8 +817,29 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildDebtsTab() {
+    // Filtrer les dettes par plage de montant si applicable
+    List filteredDebts = debts;
+    if (_minDebtAmount > 0 || _maxDebtAmount > 0) {
+      filteredDebts = debts.where((d) {
+        final amt = double.tryParse(d['amount']?.toString() ?? '0') ?? 0.0;
+        double rem = amt;
+        try {
+          if (d != null && d['remaining'] != null) {
+            rem = double.tryParse(d['remaining'].toString()) ?? rem;
+          } else if (d != null && d['total_paid'] != null) {
+            rem = amt - (double.tryParse(d['total_paid'].toString()) ?? 0.0);
+          }
+        } catch (_) {}
+        
+        bool inRange = true;
+        if (_minDebtAmount > 0 && rem < _minDebtAmount) inRange = false;
+        if (_maxDebtAmount > 0 && rem > _maxDebtAmount) inRange = false;
+        return inRange;
+      }).toList();
+    }
+
     final Map<dynamic, List> grouped = {};
-    for (final d in debts) {
+    for (final d in filteredDebts) {
       final key = d != null && d['client_id'] != null ? d['client_id'] : 'unknown';
       if (!grouped.containsKey(key)) grouped[key] = [];
       grouped[key]!.add(d);
@@ -802,7 +874,7 @@ class _HomePageState extends State<HomePage> {
 
     double totalToCollect = 0.0;
     int totalUnpaid = 0;
-    for (final d in debts) {
+    for (final d in filteredDebts) {
       final amt = double.tryParse(d['amount']?.toString() ?? '0') ?? 0.0;
       double rem = amt;
       try {
@@ -824,31 +896,72 @@ class _HomePageState extends State<HomePage> {
     return RefreshIndicator(
       onRefresh: () async => await fetchDebts(),
       child: ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         itemCount: groups.length + 1,
         itemBuilder: (ctx, gi) {
           if (gi == 0) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header Card
+                // Header Card - TOTAL À PERCEVOIR & DETTES IMPAYÉES
                 Container(
                   width: double.infinity,
                   decoration: BoxDecoration(
-                    color: isDark ? Colors.white.withOpacity(0.04) : const Color.fromARGB(189, 43, 31, 48).withOpacity(0.02),
-                    border: Border.all(color: borderColor, width: 0.5),
-                    borderRadius: BorderRadius.circular(8),
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(0),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          'TOTAL À PERCEVOIR',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 1.5,
+                            color: textColorSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            GestureDetector(
+                              onTap: () => setState(() => _showTotalCard = !_showTotalCard),
+                              child: Icon(
+                                _showTotalCard ? Icons.visibility : Icons.visibility_off,
+                                color: textColorSecondary,
+                                size: 12,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            _showTotalCard
+                                ? Text(
+                                    AppSettings().formatCurrency(totalToCollect),
+                                    style: TextStyle(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.w200,
+                                      color: textColor,
+                                    ),
+                                  )
+                                : Text(
+                                    '••••••',
+                                    style: TextStyle(
+                                      fontSize: 28,
+                                      fontWeight: FontWeight.w400,
+                                      color: textColorSecondary,
+                                    ),
+                                  ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
-                              'TOTAL À PERCEVOIR',
+                              'DETTES IMPAYÉES',
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
@@ -856,200 +969,193 @@ class _HomePageState extends State<HomePage> {
                                 color: textColorSecondary,
                               ),
                             ),
-                            const SizedBox(height: 16),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: _showTotalCard
-                                      ? Text(
-                                          AppSettings().formatCurrency(totalToCollect),
-                                          style: TextStyle(
-                                            fontSize: 24,
-                                            fontWeight: FontWeight.w300,
-                                            color: textColor,
-                                          ),
-                                        )
-                                      : Text(
-                                          '••••••',
-                                          style: TextStyle(
-                                            fontSize: 32,
-                                            fontWeight: FontWeight.w300,
-                                            color: textColorSecondary,
-                                          ),
-                                        ),
-                                ),
-                                GestureDetector(
-                                  onTap: () => setState(() => _showTotalCard = !_showTotalCard),
-                                  child: Icon(
-                                    _showTotalCard ? Icons.visibility : Icons.visibility_off,
-                                    color: textColorSecondary,
-                                    size: 20,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            Container(height: 0.5, color: borderColor),
-                            const SizedBox(height: 16),
-                            Row(
-                              children: [
-                                Text(
-                                  'DETTES IMPAYÉES',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: 1.5,
-                                    color: textColorSecondary,
-                                  ),
-                                ),
-                                const Spacer(),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: totalUnpaid > 0 ? const Color.fromARGB(255, 205, 59, 48).withOpacity(0.15) : Colors.green.withOpacity(0.15),
-                                    borderRadius: BorderRadius.circular(7),
-                                    border: Border.all(
-                                      color: totalUnpaid > 0 ? const Color.fromARGB(73, 189, 53, 43) : const Color.fromARGB(63, 76, 175, 79),
-                                      width: 1,
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        totalUnpaid > 0 ? '' : '✓',
-                                        style: const TextStyle(fontSize: 14),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        '$totalUnpaid',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w700,
-                                          color: totalUnpaid > 0 ? const Color.fromARGB(255, 197, 54, 44) : const Color.fromARGB(255, 37, 125, 40),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
+                            const SizedBox(width: 12),
+                            Text(
+                              '$totalUnpaid',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: totalUnpaid > 0 ? Colors.red : Colors.green,
+                              ),
                             ),
                           ],
                         ),
-                      ),
-                      Container(height: 0.5, color: borderColor),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                onTap: () async {
-                                  final newId = await createClient();
-                                  if (newId != null) {
-                                    await fetchClients();
-                                    await fetchDebts();
-                                  }
-                                },
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 20),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(Icons.person_add, size: 18, color: textColor),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        'CLIENT',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w600,
-                                          letterSpacing: 1,
-                                          color: textColor,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          Container(width: 0.5, color: borderColor),
-                          Expanded(
-                            child: Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                onTap: () async {
-                                  final res = await Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => AddDebtPage(
-                                        ownerPhone: widget.ownerPhone,
-                                        clients: clients,
-                                        preselectedClientId: null,
-                                      ),
-                                    ),
-                                  );
-                                  if (res == true) {
-                                    await fetchDebts();
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Dette ajoutée')),
-                                    );
-                                  }
-                                },
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 20),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(Icons.add_circle, size: 18, color: textColor),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        'DETTE',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w600,
-                                          letterSpacing: 1,
-                                          color: textColor,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Action Buttons - Minimal Zara style
+                Center(
+  child: IntrinsicWidth(
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        GestureDetector(
+          onTap: () async {
+            final newId = await createClient();
+            if (newId != null) {
+              await fetchClients();
+              await fetchDebts();
+            }
+          },
+          child: Column(
+            children: [
+              Icon(Icons.person_add, size: 24, color: textColor),
+              const SizedBox(height: 4),
+              Text(
+                'CLIENT',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0.3,
+                  color: textColorSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 32),
+        GestureDetector(
+          onTap: () async {
+            final res = await Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => AddDebtPage(
+                  ownerPhone: widget.ownerPhone,
+                  clients: clients,
+                  preselectedClientId: null,
+                ),
+              ),
+            );
+            if (res == true) {
+              await fetchDebts();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Dette ajoutée')),
+              );
+            }
+          },
+          child: Column(
+            children: [
+              Icon(Icons.add, size: 24, color: textColor),
+              const SizedBox(height: 4),
+              Text(
+                'DETTE',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0.3,
+                  color: textColorSecondary,
                             ),
                           ),
                         ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 28),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+              ),
+            ),
+                const SizedBox(height: 20),
+                // Filtre par montant
+                GestureDetector(
+                  onTap: () => setState(() => _showAmountFilter = !_showAmountFilter),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
+                      Icon(
+                        _showAmountFilter ? Icons.filter_list : Icons.filter_list_off,
+                        size: 16,
+                        color: textColorSecondary,
+                      ),
+                      const SizedBox(width: 8),
                       Text(
-                        'RÉCENT',
+                        'FILTRER PAR MONTANT',
                         style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 1.5,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: 0.5,
                           color: textColorSecondary,
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Container(
-                        width: 40,
-                        height: 2,
-                        decoration: BoxDecoration(
-                          color: textColor,
-                          borderRadius: BorderRadius.circular(1),
-                        ),
-                      ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 8),
+                if (_showAmountFilter) ...[
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _amountMinController,
+                            keyboardType: TextInputType.number,
+                            style: TextStyle(color: textColor, fontSize: 12),
+                            onChanged: (_) => setState(() {
+                              _minDebtAmount = double.tryParse(_amountMinController.text) ?? 0.0;
+                            }),
+                            decoration: InputDecoration(
+                              hintText: 'Min',
+                              hintStyle: TextStyle(color: textColorSecondary, fontSize: 11),
+                              border: UnderlineInputBorder(borderSide: BorderSide(color: borderColor, width: 0.3)),
+                              enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: borderColor, width: 0.3)),
+                              focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: textColor, width: 0.5)),
+                              contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text('-', style: TextStyle(color: textColorSecondary, fontSize: 14, fontWeight: FontWeight.w300)),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextField(
+                            controller: _amountMaxController,
+                            keyboardType: TextInputType.number,
+                            style: TextStyle(color: textColor, fontSize: 12),
+                            onChanged: (_) => setState(() {
+                              _maxDebtAmount = double.tryParse(_amountMaxController.text) ?? 0.0;
+                            }),
+                            decoration: InputDecoration(
+                              hintText: 'Max',
+                              hintStyle: TextStyle(color: textColorSecondary, fontSize: 11),
+                              border: UnderlineInputBorder(borderSide: BorderSide(color: borderColor, width: 0.3)),
+                              enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: borderColor, width: 0.3)),
+                              focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: textColor, width: 0.5)),
+                              contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
+                            ),
+                          ),
+                        ),
+                        if (_minDebtAmount > 0 || _maxDebtAmount > 0)
+                          IconButton(
+                            icon: Icon(Icons.clear, size: 16, color: textColorSecondary),
+                            onPressed: () {
+                              _amountMinController.clear();
+                              _amountMaxController.clear();
+                              setState(() {
+                                _minDebtAmount = 0.0;
+                                _maxDebtAmount = 0.0;
+                              });
+                            },
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 20),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    'RÉCENT',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 1.2,
+                      color: textColorSecondary,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
               ],
             );
           }
@@ -1091,11 +1197,11 @@ class _HomePageState extends State<HomePage> {
 
           final bool isOpen = _expandedClients.contains(cid);
           return Container(
-            margin: const EdgeInsets.only(bottom: 12),
+            margin: const EdgeInsets.only(bottom: 8),
             decoration: BoxDecoration(
-              color: isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.02),
-              border: Border.all(color: borderColor, width: 0.5),
-              borderRadius: BorderRadius.circular(8),
+              color: Colors.transparent,
+              border: Border(bottom: BorderSide(color: borderColor, width: 0.3)),
+              borderRadius: BorderRadius.circular(0),
             ),
             child: Column(
               children: [
@@ -1108,12 +1214,9 @@ class _HomePageState extends State<HomePage> {
                     }
                   }),
                   onLongPress: () => _showClientActions(client, cid),
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(8),
-                    topRight: Radius.circular(8),
-                  ),
+                  borderRadius: BorderRadius.zero,
                   child: Padding(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 0),
                     child: Row(
                       children: [
                         Container(
@@ -1176,33 +1279,12 @@ class _HomePageState extends State<HomePage> {
                               ),
                             ),
                             const SizedBox(height: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: unpaidCount > 0 ? const Color.fromARGB(211, 155, 37, 29).withOpacity(0.15) : Colors.green.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(7),
-                                border: Border.all(
-                                  color: unpaidCount > 0 ? const Color.fromARGB(57, 244, 67, 54) : Colors.green,
-                                  width: 1,
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    unpaidCount > 0 ? '' : '✓',
-                                    style: const TextStyle(fontSize: 12),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    '$unpaidCount dette${unpaidCount > 1 ? 's' : ''}',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: unpaidCount > 0 ? Colors.red : Colors.green,
-                                    ),
-                                  ),
-                                ],
+                            Text(
+                              '$unpaidCount',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: unpaidCount > 0 ? Colors.red : Colors.green,
                               ),
                             ),
                           ],
@@ -1271,7 +1353,7 @@ class _HomePageState extends State<HomePage> {
                             ),
                           ],
                           offset: const Offset(0, 40),
-                          child: Icon(Icons.more_vert, color: textColor, size: 20),
+                          child: Icon(Icons.more_vert, color: textColor, size: 16),
                         ),
                         AnimatedRotation(
                           turns: isOpen ? 0.5 : 0.0,
@@ -1310,22 +1392,21 @@ class _HomePageState extends State<HomePage> {
                         } catch (_) {}
 
                         final statusColor = isPaid ? Colors.green : (isOverdue ? Colors.red : Colors.green);
-                        final statusBgColor = isPaid ? Colors.green.withOpacity(0.1) : (isOverdue ? Colors.red.withOpacity(0.1) : Colors.green.withOpacity(0.1));
 
                         return Container(
-                          margin: const EdgeInsets.symmetric(vertical: 4),
+                          margin: const EdgeInsets.only(bottom: 1),
                           decoration: BoxDecoration(
-                            color: statusBgColor,
+                            color: Colors.transparent,
                             border: Border(
-                              left: BorderSide(color: statusColor, width: 3),
+                              bottom: BorderSide(color: borderColor, width: 0.3),
                             ),
-                            borderRadius: BorderRadius.circular(6),
+                            borderRadius: BorderRadius.zero,
                           ),
                           child: InkWell(
                             onTap: () => showDebtDetails(d),
                             borderRadius: BorderRadius.circular(6),
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 8),
                               child: Row(
                                 children: [
                                   Expanded(
@@ -1420,7 +1501,7 @@ class _HomePageState extends State<HomePage> {
     return RefreshIndicator(
       onRefresh: () async => await fetchClients(),
       child: ListView.builder(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         itemCount: filtered.length,
         itemBuilder: (ctx, i) {
           final c = filtered[i];
@@ -1434,9 +1515,10 @@ class _HomePageState extends State<HomePage> {
               borderRadius: BorderRadius.circular(8),
             ),
             child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
               leading: Container(
-                width: 44,
-                height: 44,
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
                   color: Theme.of(context).brightness == Brightness.light ? Colors.grey[100] : Colors.grey[900],
                 ),
@@ -1459,7 +1541,7 @@ class _HomePageState extends State<HomePage> {
               title: Text(
                 c['name'].toString().toUpperCase(),
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 13,
                   fontWeight: FontWeight.w600,
                   color: textColor,
                 ),
@@ -1498,6 +1580,7 @@ class _HomePageState extends State<HomePage> {
                   ),
                   const SizedBox(width: 12),
                   PopupMenuButton<String>(
+                    constraints: const BoxConstraints(maxWidth: 200),
                     onSelected: (v) async {
                       if (v == 'payment') {
                         final debtWithClient = debts.firstWhere(
@@ -1562,10 +1645,10 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ],
                     offset: const Offset(0, 40),
-                    child: Icon(Icons.more_vert, color: textColor, size: 20),
+                    child: Icon(Icons.more_vert, color: textColor, size: 16),
                   ),
-                ],
-              ),
+              ],
+            ),
               onTap: () => _showClientActions(c, c['id']),
               onLongPress: () async {
                 final num = c['client_number'] ?? '';
@@ -1682,30 +1765,42 @@ class _HomePageState extends State<HomePage> {
         ],
       ),
       body: _tabIndex == 0 ? _buildDebtsTab() : _buildClientsTab(),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          border: Border(top: BorderSide(color: Theme.of(context).dividerColor)),
-        ),
-        child: BottomNavigationBar(
-          currentIndex: _tabIndex,
-          onTap: (i) {
-            setState(() => _tabIndex = i);
-            if (i == 0 && _searchQuery.isNotEmpty) fetchDebts(query: _searchQuery);
-          },
-          backgroundColor: Theme.of(context).cardColor,
-          selectedItemColor: Theme.of(context).colorScheme.primary,
-          unselectedItemColor: textColorSecondary,
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.list, size: 20),
-              label: 'DETTES',
+      bottomNavigationBar: Builder(
+        builder: (ctx) {
+          final isDark = Theme.of(ctx).brightness == Brightness.dark;
+          final textColor = isDark ? Colors.white : Colors.black;
+          final textColorSecondary = isDark ? Colors.white70 : Colors.black54;
+          final borderColor = isDark ? Colors.white24 : Colors.black26;
+          
+          return Container(
+            decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: borderColor, width: 0.3)),
+              color: Colors.transparent,
             ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.people, size: 20),
-              label: 'CLIENTS',
+            child: BottomNavigationBar(
+              currentIndex: _tabIndex,
+              onTap: (i) {
+                setState(() => _tabIndex = i);
+                if (i == 0 && _searchQuery.isNotEmpty) fetchDebts(query: _searchQuery);
+              },
+              backgroundColor: Colors.transparent,
+              selectedItemColor: textColor,
+              unselectedItemColor: textColorSecondary,
+              elevation: 0,
+              type: BottomNavigationBarType.fixed,
+              items: [
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.list_alt, size: 20, color: _tabIndex == 0 ? textColor : textColorSecondary),
+                  label: 'DETTES',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.people, size: 20, color: _tabIndex == 1 ? textColor : textColorSecondary),
+                  label: 'CLIENTS',
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

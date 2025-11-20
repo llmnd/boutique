@@ -65,13 +65,42 @@ router.post('/', async (req, res) => {
 // Update a debt
 router.put('/:id', async (req, res) => {
   const { id } = req.params;
-  const { creditor, debtor, amount, due_date, notes, paid } = req.body;
+  const { amount, due_date, notes, paid } = req.body;
   try {
-    const result = await pool.query(
-      'UPDATE debts SET creditor=$1, debtor=$2, amount=$3, due_date=$4, notes=$5, paid=COALESCE($6, paid) WHERE id=$7 RETURNING *',
-      [creditor, debtor, amount, due_date, notes, paid, id]
-    );
-    if (result.rowCount === 0) return res.status(404).json({ error: 'Not found' });
+    const owner = req.headers['x-owner'] || req.headers['X-Owner'] || process.env.BOUTIQUE_OWNER || 'owner';
+    
+    // Verify ownership: only allow updating own debts
+    const checkRes = await pool.query('SELECT * FROM debts WHERE id=$1 AND creditor=$2', [id, owner]);
+    if (checkRes.rowCount === 0) return res.status(404).json({ error: 'Not found' });
+    
+    // Build update query dynamically (only update provided fields)
+    let updateFields = [];
+    let params = [];
+    let paramIndex = 1;
+    
+    if (amount !== undefined) {
+      updateFields.push(`amount=$${paramIndex++}`);
+      params.push(amount);
+    }
+    if (due_date !== undefined) {
+      updateFields.push(`due_date=$${paramIndex++}`);
+      params.push(due_date);
+    }
+    if (notes !== undefined) {
+      updateFields.push(`notes=$${paramIndex++}`);
+      params.push(notes);
+    }
+    if (paid !== undefined) {
+      updateFields.push(`paid=$${paramIndex++}`);
+      params.push(paid);
+    }
+    
+    if (updateFields.length === 0) return res.status(400).json({ error: 'No fields to update' });
+    
+    params.push(id);
+    const query = `UPDATE debts SET ${updateFields.join(', ')} WHERE id=$${paramIndex} RETURNING *`;
+    const result = await pool.query(query, params);
+    
     res.json(result.rows[0]);
   } catch (err) {
     console.error(err);

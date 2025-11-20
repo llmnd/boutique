@@ -171,9 +171,9 @@ class AppSettings extends ChangeNotifier {
     final num? parsed = (value is num) ? value : num.tryParse(value.toString());
     if (parsed == null) return value.toString();
     final converted = convertFromXof(parsed);
-    // For XOF (FCFA) we want format like "500 FCFA" (no decimals, currency after amount)
+    // For XOF (FCFA) we want format like "500 F" (no decimals, currency after amount)
     if (_currency == 'XOF') {
-      return '${converted.toStringAsFixed(0)} FCFA';
+      return '${converted.toStringAsFixed(0)} F';
     }
 
     // For other currencies (EUR, USD) use locale-aware formatting with 2 decimals
