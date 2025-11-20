@@ -265,133 +265,6 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _showClientActions(dynamic client, dynamic clientId) async {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (ctx) {
-        final avatar = client != null ? (client['avatar_url'] ?? '') : '';
-        final name = client != null ? (client['name'] ?? 'Client') : 'Client';
-        final number = client != null ? (client['client_number'] ?? '') : '';
-        final isDark = Theme.of(context).brightness == Brightness.dark;
-        final textColor = isDark ? Colors.white : Colors.black;
-        final textColorSecondary = isDark ? Colors.white70 : Colors.black54;
-        
-        return DraggableScrollableSheet(
-          initialChildSize: 0.36,
-          minChildSize: 0.2,
-          maxChildSize: 0.9,
-          builder: (context2, sc) {
-            return Container(
-              decoration: BoxDecoration(
-                color: Theme.of(context2).cardColor,
-              ),
-              child: SingleChildScrollView(
-                controller: sc,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Handle
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 4,
-                        margin: const EdgeInsets.symmetric(vertical: 12),
-                        decoration: BoxDecoration(
-                          color: textColorSecondary,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    ),
-                    // Header
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 56,
-                            height: 56,
-                            decoration: BoxDecoration(
-                              color: Theme.of(context2).brightness == Brightness.light ? Colors.grey[300] : Colors.grey[900],
-                            ),
-                            child: avatar != null && avatar != ''
-                                ? CachedNetworkImage(imageUrl: avatar, fit: BoxFit.cover)
-                                : Icon(Icons.person, color: textColorSecondary, size: 28),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  name.toString(),
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: textColor,
-                                  ),
-                                ),
-                                if (number != null && number.toString().isNotEmpty) 
-                                  const SizedBox(height: 6),
-                                if (number != null && number.toString().isNotEmpty)
-                                  Text(
-                                    number.toString(),
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: textColorSecondary,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          )
-                        ],
-                      ),
-                    ),
-                    Container(height: 0.5, color: Theme.of(context2).dividerColor),
-                    // Actions
-                    ListTile(
-                      leading: Icon(Icons.add_circle, color: Theme.of(context2).colorScheme.primary),
-                      title: Text('Ajouter une dette', style: TextStyle(color: textColor)),
-                      onTap: () async {
-                        Navigator.of(ctx).pop();
-                        dynamic c = client;
-                        if (c == null && clientId != null) {
-                          c = clients.firstWhere((x) => x['id'] == clientId, orElse: () => null);
-                        }
-                        if (c != null) await _addDebtForClient(c);
-                      },
-                    ),
-                    ListTile(
-                      leading: Icon(Icons.copy, color: textColorSecondary),
-                      title: Text('Copier numéro', style: TextStyle(color: textColor)),
-                      onTap: () async {
-                        Navigator.of(ctx).pop();
-                        final num = client != null ? client['client_number'] ?? '' : '';
-                        if (num != null && num.toString().isNotEmpty) {
-                          await Clipboard.setData(ClipboardData(text: num.toString()));
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Numéro copié: $num')),
-                            );
-                          }
-                        } else {
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Aucun numéro à copier')),
-                            );
-                          }
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
   }
 
   Future<void> _addDebtForClient(dynamic c) async {
@@ -1206,13 +1079,11 @@ class _HomePageState extends State<HomePage> {
             child: Column(
               children: [
                 InkWell(
-                  onTap: () => setState(() {
-                    if (isOpen) {
-                      _expandedClients.remove(cid);
-                    } else {
-                      _expandedClients.add(cid);
+                  onTap: () {
+                    if (clientDebts.isNotEmpty) {
+                      showDebtDetails(clientDebts.first);
                     }
-                  }),
+                  },
                   onLongPress: () => _showClientActions(client, cid),
                   borderRadius: BorderRadius.zero,
                   child: Padding(
@@ -1341,16 +1212,7 @@ class _HomePageState extends State<HomePage> {
                                 ],
                               ),
                             ),
-                            PopupMenuItem<String>(
-                              value: 'debt',
-                              child: Row(
-                                children: [
-                                  Icon(Icons.add_circle, size: 18, color: Colors.orange),
-                                  const SizedBox(width: 8),
-                                  Text('Ajouter dette', style: TextStyle(color: textColor)),
-                                ],
-                              ),
-                            ),
+                            
                           ],
                           offset: const Offset(0, 40),
                           child: Icon(Icons.more_vert, color: textColor, size: 16),

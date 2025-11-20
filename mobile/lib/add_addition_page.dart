@@ -9,11 +9,7 @@ class AddAdditionPage extends StatefulWidget {
   final String ownerPhone;
   final Map debt;
 
-  const AddAdditionPage({
-    super.key,
-    required this.ownerPhone,
-    required this.debt,
-  });
+  const AddAdditionPage({super.key, required this.ownerPhone, required this.debt});
 
   @override
   _AddAdditionPageState createState() => _AddAdditionPageState();
@@ -40,19 +36,14 @@ class _AddAdditionPageState extends State<AddAdditionPage> {
       firstDate: DateTime(2000),
       lastDate: DateTime.now(),
     );
-    if (picked != null && picked != _addedAt) {
-      setState(() => _addedAt = picked);
-    }
+    if (picked != null) setState(() => _addedAt = picked);
   }
 
   Future<void> _submit() async {
     final text = _amountCtl.text.trim();
     if (text.isEmpty) return;
     final val = double.tryParse(text) ?? 0.0;
-    if (val <= 0) {
-      await _showMinimalDialog('Erreur', 'Veuillez entrer un montant valide');
-      return;
-    }
+    if (val <= 0) return;
 
     setState(() => _loading = true);
     try {
@@ -65,91 +56,35 @@ class _AddAdditionPageState extends State<AddAdditionPage> {
         'added_at': _addedAt.toIso8601String(),
         'notes': _notesCtl.text.trim(),
       };
-      final res = await http
-          .post(
-            Uri.parse('$apiHost/debts/${widget.debt['id']}/add'),
-            headers: headers,
-            body: json.encode(body),
-          )
-          .timeout(const Duration(seconds: 10));
+
+      final res = await http.post(
+        Uri.parse('$apiHost/debts/${widget.debt['id']}/add'),
+        headers: headers,
+        body: json.encode(body),
+      ).timeout(const Duration(seconds: 10));
 
       if (res.statusCode == 200 || res.statusCode == 201) {
-        if (mounted) Navigator.of(context).pop(true);
+        if (!mounted) return;
+        Navigator.of(context).pop(true);
       } else {
-        final msg = res.body;
-        await _showMinimalDialog(
-          'Erreur',
-          'Échec ajout montant: ${res.statusCode}\n$msg',
-        );
+        if (!mounted) return;
+        final msg = json.decode(res.body)['message'] ?? res.body;
+        _showSnack(msg);
       }
     } catch (e) {
-      await _showMinimalDialog('Erreur réseau', '$e');
+      _showSnack('Erreur réseau: $e');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
-  Future<void> _showMinimalDialog(String title, String message) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black;
-
-    return showDialog(
-      context: context,
-      barrierColor: Colors.black87,
-      builder: (ctx) => Dialog(
-        backgroundColor: Theme.of(context).cardColor,
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 500),
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title.toUpperCase(),
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 1.5,
-                  color: textColor,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                message,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w300,
-                  color: textColor,
-                ),
-              ),
-              const SizedBox(height: 24),
-              Align(
-                alignment: Alignment.centerRight,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.of(ctx).pop(),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isDark ? Colors.white : Colors.black,
-                    foregroundColor: isDark ? Colors.black : Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(0),
-                    ),
-                  ),
-                  child: Text(
-                    'OK',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1,
-                      color: isDark ? Colors.black : Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+  void _showSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
     );
   }
@@ -157,242 +92,147 @@ class _AddAdditionPageState extends State<AddAdditionPage> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black;
-    final textColorSecondary = isDark ? Colors.white70 : Colors.black54;
-    final borderColor = isDark ? Colors.white24 : Colors.black26;
-    final debtAmount =
-        double.tryParse(widget.debt['amount']?.toString() ?? '0') ?? 0.0;
+    final colors = _ZaraColors(isDark);
 
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: colors.background,
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: Colors.transparent,
+        backgroundColor: colors.background,
         leading: IconButton(
-          icon: Icon(Icons.close, color: textColor, size: 24),
+          icon: Icon(Icons.close, color: colors.textPrimary, size: 20),
           onPressed: () => Navigator.of(context).pop(false),
         ),
-        title: Text(
-          'AJOUTER UN MONTANT',
+        title: Text('Ajouter un montant', 
           style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 2,
-            color: textColor,
-          ),
-        ),
+            color: colors.textPrimary,
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+            letterSpacing: -0.2
+          )),
         centerTitle: true,
       ),
       body: SafeArea(
-        child: Form(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 400),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Client Info
-                          Container(
-                            width: double.infinity,
-                            decoration: BoxDecoration(
-                              border: Border.all(color: borderColor, width: 0.5),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(24),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'CLIENT',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                      letterSpacing: 1.5,
-                                      color: textColorSecondary,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    (widget.debt['client_name'] ?? '')
-                                        .toUpperCase(),
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w400,
-                                      color: textColor,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 24),
-                                  Text(
-                                    'MONTANT ACTUEL DE LA DETTE',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                      letterSpacing: 1.5,
-                                      color: textColorSecondary,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    '${debtAmount.toStringAsFixed(0)} F',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w400,
-                                      color: textColor,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          // Amount field
-                          Text(
-                            'MONTANT À AJOUTER',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 1.5,
-                              color: textColorSecondary,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          TextFormField(
-                            controller: _amountCtl,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: textColor,
-                            ),
-                            decoration: InputDecoration(
-                              hintText: '0',
-                              hintStyle: TextStyle(color: textColorSecondary),
-                              border: UnderlineInputBorder(
-                                borderSide:
-                                    BorderSide(color: borderColor, width: 0.5),
-                              ),
-                              focusedBorder: UnderlineInputBorder(
-                                borderSide:
-                                    BorderSide(color: textColor, width: 1),
-                              ),
-                              contentPadding:
-                                  const EdgeInsets.symmetric(vertical: 12),
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          // Date field
-                          Text(
-                            'DATE',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 1.5,
-                              color: textColorSecondary,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          GestureDetector(
-                            onTap: _selectDate,
-                            child: Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              decoration: BoxDecoration(
-                                border: Border(
-                                  bottom: BorderSide(
-                                    color: borderColor,
-                                    width: 0.5,
-                                  ),
-                                ),
-                              ),
-                              child: Text(
-                                DateFormat('dd/MM/yyyy').format(_addedAt),
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: textColor,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          // Notes field
-                          Text(
-                            'NOTE (OPTIONNEL)',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 1.5,
-                              color: textColorSecondary,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          TextFormField(
-                            controller: _notesCtl,
-                            maxLines: 3,
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: textColor,
-                            ),
-                            decoration: InputDecoration(
-                              hintText:
-                                  'Ajoutez une explication pour cette addition...',
-                              hintStyle: TextStyle(color: textColorSecondary),
-                              border: OutlineInputBorder(
-                                borderSide: BorderSide(
-                                  color: borderColor,
-                                  width: 0.5,
-                                ),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderSide: BorderSide(
-                                  color: textColor,
-                                  width: 1,
-                                ),
-                              ),
-                              contentPadding: const EdgeInsets.all(12),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+              const SizedBox(height: 8),
+              
+              // Montant principal
+              Text('MONTANT', 
+                style: TextStyle(
+                  color: colors.textSecondary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0.5
+                )),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _amountCtl,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.w300,
+                  color: colors.textPrimary,
+                  height: 1.2
+                ),
+                decoration: InputDecoration(
+  hintText: '',
+  hintStyle: TextStyle(color: colors.textHint),
+  filled: true,
+  fillColor: colors.surface,
+  enabledBorder: OutlineInputBorder(
+    borderSide: BorderSide(color: colors.border, width: 1),
+  ),
+  focusedBorder: OutlineInputBorder(
+    borderSide: BorderSide(color: colors.textPrimary, width: 1.2),
+  ),
+  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+  prefixStyle: TextStyle(
+    fontSize: 28,
+    fontWeight: FontWeight.w300,
+    color: colors.textPrimary,
+  ),
+),
+              ),
+              const SizedBox(height: 24),
+
+              // Section informations
+              Text('INFORMATIONS',
+                style: TextStyle(
+                  color: colors.textSecondary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0.5
+                )),
+              const SizedBox(height: 16),
+
+              // Date
+              _ZaraFormField(
+                onTap: _selectDate,
+                child: Row(
+                  children: [
+                    Icon(Icons.calendar_today_outlined, 
+                      color: colors.textSecondary, size: 18),
+                    const SizedBox(width: 12),
+                    Text(DateFormat('dd/MM/yyyy').format(_addedAt), 
+                      style: TextStyle(color: colors.textPrimary)),
+                  ],
                 ),
               ),
-              // Submit button
-              Container(
-                padding: const EdgeInsets.all(20),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _loading ? null : _submit,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: isDark ? Colors.white : Colors.black,
-                      foregroundColor: isDark ? Colors.black : Colors.white,
-                      disabledBackgroundColor: Colors.grey[600],
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(0),
-                      ),
-                    ),
-                    child: Text(
-                      _loading ? 'TRAITEMENT...' : 'AJOUTER LE MONTANT',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 1.5,
-                        color: isDark ? Colors.black : Colors.white,
-                      ),
-                    ),
+              const SizedBox(height: 12),
+
+              // Notes
+              _ZaraFormField(
+                child: TextField(
+                  controller: _notesCtl,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    hintText: 'Notes (optionnel)',
+                    hintStyle: TextStyle(color: colors.textHint, fontSize: 14),
+                    border: InputBorder.none,
                   ),
+                  style: TextStyle(color: colors.textPrimary, fontSize: 14),
                 ),
               ),
+              const Spacer(),
+
+              // Bouton
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: _loading ? null : _submit,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: colors.buttonBackground,
+                    foregroundColor: colors.buttonForeground,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(0),
+                    ),
+                  ),
+                  child: _loading 
+                    ? SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: colors.buttonForeground,
+                        ),
+                      )
+                    : Text(
+                        'AJOUTER LE MONTANT',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.5
+                        ),
+                      ),
+                ),
+              ),
+              const SizedBox(height: 20),
             ],
           ),
         ),
@@ -406,4 +246,48 @@ class _AddAdditionPageState extends State<AddAdditionPage> {
     _notesCtl.dispose();
     super.dispose();
   }
+}
+
+class _ZaraFormField extends StatelessWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+
+  const _ZaraFormField({required this.child, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = _ZaraColors(isDark);
+
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: colors.border, width: 1),
+      ),
+      child: Material(
+        color: colors.surface,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ZaraColors {
+  final bool isDark;
+
+  _ZaraColors(this.isDark);
+
+  Color get background => isDark ? Color.fromARGB(255, 0, 0, 0) : Color(0xFFFFFFFF);
+  Color get surface => isDark ? Color.fromARGB(255, 0, 0, 0) : Color(0xFFFFFFFF);
+  Color get textPrimary => isDark ? Color(0xFFFFFFFF) : Color(0xFF000000);
+  Color get textSecondary => isDark ? Color(0xFFB0B0B0) : Color(0xFF666666);
+  Color get textHint => isDark ? Color(0xFF888888) : Color(0xFF999999);
+  Color get border => isDark ? Color(0xFF333333) : Color(0xFFDDDDDD);
+  Color get buttonBackground => isDark ? Color(0xFFFFFFFF) : Color(0xFF000000);
+  Color get buttonForeground => isDark ? Color(0xFF000000) : Color(0xFFFFFFFF);
 }
