@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:intl/intl.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'data/audio_service.dart';
 
 class AddDebtPage extends StatefulWidget {
@@ -40,6 +41,7 @@ class _AddDebtPageState extends State<AddDebtPage> with SingleTickerProviderStat
   @override
   void initState() {
     super.initState();
+    _initializeDateFormatting();
     _audioService = AudioService();
     _pulseController = AnimationController(
       vsync: this,
@@ -57,6 +59,14 @@ class _AddDebtPageState extends State<AddDebtPage> with SingleTickerProviderStat
     _clientId = validClientId ?? (widget.clients.isNotEmpty ? widget.clients.first['id'] : null);
   }
 
+  Future<void> _initializeDateFormatting() async {
+    try {
+      await initializeDateFormatting('fr_FR', null);
+    } catch (_) {
+      // Ignore si déjà initialisé
+    }
+  }
+
   @override
   void dispose() {
     _pulseController.dispose();
@@ -69,46 +79,53 @@ class _AddDebtPageState extends State<AddDebtPage> with SingleTickerProviderStat
   Future<void> _createClientInline() async {
     final numberCtl = TextEditingController();
     final nameCtl = TextEditingController();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final textColorSecondary = isDark ? Colors.white70 : Colors.black54;
+    
     final ok = await showDialog<bool>(
       context: context,
       barrierColor: Colors.black87,
       builder: (c) => Dialog(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        backgroundColor: Theme.of(context).cardColor,
         child: Container(
           constraints: const BoxConstraints(maxWidth: 500),
-          padding: const EdgeInsets.all(32),
+          padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('NOUVEAU CLIENT', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1.5, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)),
-              const SizedBox(height: 24),
+              Text(
+                'NOUVEAU CLIENT',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.5,
+                  color: textColor,
+                ),
+              ),
+              const SizedBox(height: 16),
               TextField(
                 controller: nameCtl,
                 autofocus: true,
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w400, letterSpacing: -0.2, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black),
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w400, color: textColor),
                 decoration: InputDecoration(
-                  labelText: 'Nom',
-                  labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w400, letterSpacing: 0.5),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(width: 0.5)),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Theme.of(context).brightness == Brightness.dark ? Colors.white24 : Colors.black26, width: 0.5)),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black, width: 1)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  labelText: 'Nom du client',
+                  labelStyle: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: textColorSecondary),
+                  border: const OutlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 ),
               ),
               const SizedBox(height: 16),
               TextField(
                 controller: numberCtl,
                 keyboardType: TextInputType.phone,
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w400, letterSpacing: -0.2, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black),
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w400, color: textColor),
                 decoration: InputDecoration(
-                  labelText: 'Numéro (optionnel)',
-                  labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w400, letterSpacing: 0.5),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(width: 0.5)),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Theme.of(context).brightness == Brightness.dark ? Colors.white24 : Colors.black26, width: 0.5)),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black, width: 1)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  labelText: 'Numéro de téléphone (optionnel)',
+                  labelStyle: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: textColorSecondary),
+                  border: const OutlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 ),
               ),
               const SizedBox(height: 24),
@@ -118,22 +135,35 @@ class _AddDebtPageState extends State<AddDebtPage> with SingleTickerProviderStat
                   TextButton(
                     onPressed: () => Navigator.of(c).pop(false),
                     style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                      foregroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      foregroundColor: textColorSecondary,
                     ),
-                    child: Text('ANNULER', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1, color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54)),
+                    child: Text(
+                      'ANNULER',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1,
+                      ),
+                    ),
                   ),
                   const SizedBox(width: 12),
                   ElevatedButton(
                     onPressed: () => Navigator.of(c).pop(true),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black,
-                      foregroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.black : Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                      backgroundColor: isDark ? Colors.white : Colors.black,
+                      foregroundColor: isDark ? Colors.black : Colors.white,
                       elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
                     ),
-                    child: Text('AJOUTER', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1, color: Theme.of(context).brightness == Brightness.dark ? Colors.black : Colors.white)),
+                    child: Text(
+                      'AJOUTER',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -213,81 +243,158 @@ class _AddDebtPageState extends State<AddDebtPage> with SingleTickerProviderStat
   }
 
   Future<bool?> _showExistingClientDialog(Map found) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final textColorSecondary = isDark ? Colors.white70 : Colors.black54;
+    
     return showDialog<bool>(
       context: context,
       barrierColor: Colors.black87,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        contentPadding: const EdgeInsets.all(32),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('CLIENT EXISTANT', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1.5, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)),
-            const SizedBox(height: 16),
-            Text('Un client existe avec ce numéro : ${found['name']}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w300, letterSpacing: -0.2, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(false),
-                  style: TextButton.styleFrom(
-                    foregroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  ),
-                  child: Text('NON', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1, color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54)),
+      builder: (ctx) => Dialog(
+        backgroundColor: Theme.of(context).cardColor,
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 500),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'CLIENT TROUVÉ',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.5,
+                  color: textColor,
                 ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: () => Navigator.of(ctx).pop(true),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black,
-                    foregroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.black : Colors.white,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: Text('SÉLECTIONNER', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1, color: Theme.of(context).brightness == Brightness.dark ? Colors.black : Colors.white)),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Ce client existe déjà. Voulez-vous sélectionner ce client ?',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w300,
+                  color: textColor,
                 ),
-              ],
-            ),
-          ],
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Theme.of(context).dividerColor),
+                ),
+                child: Text(
+                  '${found['name'] ?? 'Client'}',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(false),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      foregroundColor: textColorSecondary,
+                    ),
+                    child: Text(
+                      'NON',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton(
+                    onPressed: () => Navigator.of(ctx).pop(true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isDark ? Colors.white : Colors.black,
+                      foregroundColor: isDark ? Colors.black : Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
+                    ),
+                    child: Text(
+                      'SÉLECTIONNER',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   Future<void> _showMinimalDialog(String message) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
+    
     return showDialog(
       context: context,
       barrierColor: Colors.black87,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        contentPadding: const EdgeInsets.all(32),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(message, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w300, letterSpacing: -0.2, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)),
-            const SizedBox(height: 20),
-            Align(
-              alignment: Alignment.centerRight,
-              child: ElevatedButton(
-                onPressed: () => Navigator.of(ctx).pop(),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black,
-                  foregroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.black : Colors.white,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      builder: (ctx) => Dialog(
+        backgroundColor: Theme.of(context).cardColor,
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 500),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'ERREUR',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.5,
+                  color: textColor,
                 ),
-                child: Text('OK', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1, color: Theme.of(context).brightness == Brightness.dark ? Colors.black : Colors.white)),
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              Text(
+                message,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w300,
+                  color: textColor,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Align(
+                alignment: Alignment.centerRight,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isDark ? Colors.white : Colors.black,
+                    foregroundColor: isDark ? Colors.black : Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
+                  ),
+                  child: Text(
+                    'FERMER',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -296,12 +403,21 @@ class _AddDebtPageState extends State<AddDebtPage> with SingleTickerProviderStat
   void _showMinimalSnackbar(String message, {bool isSuccess = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, letterSpacing: 1, color: Colors.white)),
-        backgroundColor: isSuccess ? Colors.green : Colors.black,
+        content: Text(
+          message.toUpperCase(),
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.8,
+            color: Colors.white,
+          ),
+        ),
+        backgroundColor: isSuccess ? Colors.green.shade600 : Colors.black87,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        margin: const EdgeInsets.all(20),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
         duration: const Duration(seconds: 2),
+        elevation: 4,
       ),
     );
   }
@@ -367,6 +483,286 @@ class _AddDebtPageState extends State<AddDebtPage> with SingleTickerProviderStat
     }
   }
 
+  Future<void> _openNotesSheet() async {
+    final localNotesCtl = TextEditingController(text: _notesCtl.text);
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(0)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx2, setStateSheet) {
+            final isDark = Theme.of(context).brightness == Brightness.dark;
+            final borderColor = isDark ? Colors.white24 : Colors.black26;
+            final textColor = isDark ? Colors.white : Colors.black;
+            final textColorSecondary = isDark ? Colors.white70 : Colors.black54;
+            
+            return Padding(
+              padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).scaffoldBackgroundColor,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(0)),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header with drag indicator
+                    Center(
+                      child: Container(
+                        margin: const EdgeInsets.only(top: 12),
+                        width: 44,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: isDark ? Colors.white30 : Colors.black26,
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'DÉTAILS',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 1.8,
+                                color: textColorSecondary,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Note personnelle',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: textColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.of(ctx).pop(),
+                          icon: Icon(Icons.close, size: 20, color: textColorSecondary),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    
+                    // Notes input - Style minimaliste
+                    Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: borderColor,
+                          width: 0.5,
+                        ),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'NOTE PERSONNELLE',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 1.5,
+                              color: textColorSecondary,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: localNotesCtl,
+                            maxLines: 5,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: textColor,
+                              height: 1.5,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: 'Décrire les détails de la dette...',
+                              hintStyle: TextStyle(
+                                color: textColorSecondary,
+                                fontSize: 14,
+                                height: 1.5,
+                              ),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Audio section - Style minimaliste
+                    Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: borderColor,
+                          width: 0.5,
+                        ),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'ENREGISTREMENT AUDIO',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 1.5,
+                              color: textColorSecondary,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          
+                          // Audio controls
+                          if (_audioPath == null && !_isRecording)
+                            ElevatedButton.icon(
+                              onPressed: () async {
+                                await _startRecording();
+                                setStateSheet(() {});
+                              },
+                              icon: Icon(Icons.mic, size: 16),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: isDark ? Colors.white : Colors.black,
+                                foregroundColor: isDark ? Colors.black : Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
+                              ),
+                              label: Text(
+                                'DÉMARRER',
+                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.5),
+                              ),
+                            )
+                          else if (_isRecording)
+                            ElevatedButton.icon(
+                              onPressed: () async {
+                                await _stopRecording();
+                                setStateSheet(() {});
+                              },
+                              icon: Icon(Icons.stop, size: 16),
+                              label: Text(
+                                'ARRÊTER',
+                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.5),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red.shade600,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
+                              ),
+                            )
+                          else
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: () async {
+                                      await _playAudio();
+                                    },
+                                    icon: Icon(Icons.play_arrow, size: 16),
+                                    label: Text(
+                                      'ÉCOUTER',
+                                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                                    ),
+                                    style: OutlinedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
+                                      side: BorderSide(color: borderColor, width: 0.5),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                OutlinedButton(
+                                  onPressed: () async {
+                                    await _deleteAudio();
+                                    setStateSheet(() {});
+                                  },
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
+                                    side: BorderSide(color: Colors.red.shade300, width: 0.5),
+                                  ),
+                                  child: Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                                ),
+                              ],
+                            ),
+                        ],
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 28),
+                    
+                    // Buttons
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.of(ctx).pop(),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                            foregroundColor: textColorSecondary,
+                          ),
+                          child: Text(
+                            'ANNULER',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        ElevatedButton(
+                          onPressed: () {
+                            setState(() => _notesCtl.text = localNotesCtl.text);
+                            Navigator.of(ctx).pop();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isDark ? Colors.white : Colors.black,
+                            foregroundColor: isDark ? Colors.black : Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
+                          ),
+                          child: Text(
+                            'ENREGISTRER',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     if (_clientId == null) {
@@ -375,87 +771,67 @@ class _AddDebtPageState extends State<AddDebtPage> with SingleTickerProviderStat
     }
     setState(() => _saving = true);
     try {
-      final body = {
-        'client_id': _clientId,
-        'amount': double.tryParse(_amountCtl.text.replaceAll(',', '')) ?? 0.0,
-        'due_date': _due == null ? null : DateFormat('yyyy-MM-dd').format(_due!),
-        'notes': _notesCtl.text,
-        if (_audioPath != null) 'audio_path': _audioPath,
-      };
+      final amount = double.tryParse(_amountCtl.text.replaceAll(',', '')) ?? 0.0;
       final headers = {'Content-Type': 'application/json', if (widget.ownerPhone.isNotEmpty) 'x-owner': widget.ownerPhone};
-      final res = await http.post(Uri.parse('$apiHost/debts'), headers: headers, body: json.encode(body)).timeout(const Duration(seconds: 8));
-      if (res.statusCode == 201) {
-        _showMinimalSnackbar('Dette créée', isSuccess: true);
-        Navigator.of(context).pop(true);
+      
+      // Chercher s'il existe une dette pour ce client
+      final debtsRes = await http.get(Uri.parse('$apiHost/debts'), headers: headers).timeout(const Duration(seconds: 8));
+      
+      Map<String, dynamic>? existingDebt;
+      if (debtsRes.statusCode == 200) {
+        final debtsList = json.decode(debtsRes.body) as List?;
+        if (debtsList != null) {
+          // Trouver la première dette pour ce client
+          for (final d in debtsList) {
+            if (d != null && d['client_id'] == _clientId) {
+              existingDebt = (d as Map).cast<String, dynamic>();
+              break;
+            }
+          }
+        }
+      }
+      
+      if (existingDebt != null) {
+        // Ajouter comme montant ajouté à la dette existante
+        final additionBody = {
+          'amount': amount,
+          'added_at': DateTime.now().toIso8601String(),
+          'notes': _notesCtl.text.isNotEmpty ? _notesCtl.text : 'Montant ajouté',
+          if (_audioPath != null) 'audio_path': _audioPath,
+        };
+        
+        final res = await http.post(
+          Uri.parse('$apiHost/debts/${existingDebt['id']}/add'),
+          headers: headers,
+          body: json.encode(additionBody),
+        ).timeout(const Duration(seconds: 8));
+        
+        if (res.statusCode == 200 || res.statusCode == 201) {
+          _showMinimalSnackbar('Montant ajouté à la dette existante', isSuccess: true);
+          Navigator.of(context).pop(true);
+        } else {
+          await _showMinimalDialog('Erreur lors de l\'ajout du montant');
+        }
       } else {
-        await _showMinimalDialog('Erreur lors de la création');
+        // Créer une nouvelle dette
+        final body = {
+          'client_id': _clientId,
+          'amount': amount,
+          'due_date': _due == null ? null : DateFormat('yyyy-MM-dd').format(_due!),
+          'notes': _notesCtl.text,
+          if (_audioPath != null) 'audio_path': _audioPath,
+        };
+        final res = await http.post(Uri.parse('$apiHost/debts'), headers: headers, body: json.encode(body)).timeout(const Duration(seconds: 8));
+        if (res.statusCode == 201) {
+          _showMinimalSnackbar('Dette créée', isSuccess: true);
+          Navigator.of(context).pop(true);
+        } else {
+          await _showMinimalDialog('Erreur lors de la création');
+        }
       }
     } catch (e) {
       await _showMinimalDialog('Erreur réseau');
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
-
-  Widget _buildSection({
-    required String title,
-    required Widget child,
-    bool isOptional = false,
-    IconData? icon,
-  }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColorSecondary = isDark ? Colors.white70 : Colors.black54;
-    
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            if (icon != null) ...[
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(icon, size: 16, color: textColorSecondary),
-              ),
-              const SizedBox(width: 12),
-            ],
-            Expanded(
-              child: Row(
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1.5,
-                      color: textColorSecondary,
-                    ),
-                  ),
-                  if (isOptional) ...[
-                    const SizedBox(width: 8),
-                    Text(
-                      'Optionnel',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w400,
-                        letterSpacing: 0.5,
-                        color: isDark ? Colors.white38 : Colors.black38,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        child,
-      ],
-    );
+    } 
   }
 
   @override
@@ -463,11 +839,8 @@ class _AddDebtPageState extends State<AddDebtPage> with SingleTickerProviderStat
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black;
     final textColorSecondary = isDark ? Colors.white70 : Colors.black54;
-    final textColorTertiary = isDark ? Colors.white38 : Colors.black38;
-    final textColorHint = isDark ? Colors.white12 : Colors.black12;
     final borderColor = isDark ? Colors.white24 : Colors.black26;
-    final subtleBackground = isDark ? Colors.white10 : Colors.black.withOpacity(0.03);
-    
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
@@ -482,7 +855,7 @@ class _AddDebtPageState extends State<AddDebtPage> with SingleTickerProviderStat
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w600,
-            letterSpacing: 2,
+            letterSpacing: 2.5,
             color: textColor,
           ),
         ),
@@ -495,278 +868,242 @@ class _AddDebtPageState extends State<AddDebtPage> with SingleTickerProviderStat
             children: [
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
                   child: Center(
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 600),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          // Amount Section - avec bordure visible
-                          _buildSection(
-                            title: 'MONTANT',
-                            icon: Icons.attach_money_outlined,
+                          // Montant input - Style minimaliste
+                          Container(
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: borderColor,
+                                width: 0.5,
+                              ),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Container(
-                                  decoration: BoxDecoration(
-                                    border: Border.all(color: borderColor, width: 1),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        child: TextFormField(
-                                          controller: _amountCtl,
-                                          keyboardType: TextInputType.number,
-                                          autofocus: true,
-                                          style: TextStyle(
-                                            fontSize: 20,
-                                            fontWeight: FontWeight.w200,
-                                            letterSpacing: -0.3,
-                                            color: textColor,
-                                            height: 1,
-                                          ),
-                                          decoration: InputDecoration(
-                                            hintText: '0',
-                                            hintStyle: TextStyle(fontSize: 30, fontWeight: FontWeight.w200, color: textColorHint),
-                                            border: InputBorder.none,
-                                            contentPadding: EdgeInsets.zero,
-                                          ),
-                                          validator: (v) => (v == null || v.trim().isEmpty) ? 'Requis' : null,
-                                        ),
-                                      ),
-                                      Text(' FCFA', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w300, letterSpacing: -0.2, color: textColorSecondary)),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          const SizedBox(height: 32),
-
-                          // Client Section - bouton simplifié
-                          _buildSection(
-                            title: 'CLIENT',
-                            icon: Icons.person_outline,
-                            child: Column(
-                              children: [
-                                Container(
-                                  decoration: BoxDecoration(
-                                    color: subtleBackground,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: DropdownButtonFormField<int>(
-                                    value: _clientId,
-                                    isExpanded: true,
-                                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w400, letterSpacing: -0.2, color: textColor),
-                                    items: widget.clients.map<DropdownMenuItem<int>>((cl) {
-                                      final clientNumber = (cl['client_number'] ?? '').toString().isNotEmpty 
-                                          ? ' · ${cl['client_number']}' 
-                                          : '';
-                                      return DropdownMenuItem(
-                                        value: cl['id'],
-                                        child: Text('${cl['name'] ?? 'Client'}$clientNumber', style: TextStyle(color: textColor, letterSpacing: -0.2)),
-                                      );
-                                    }).toList(),
-                                    onChanged: (v) => setState(() => _clientId = v),
-                                    decoration: InputDecoration(
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: BorderSide.none,
-                                      ),
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                                    ),
+                                Text(
+                                  'MONTANT',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 1.5,
+                                    color: textColorSecondary,
                                   ),
                                 ),
                                 const SizedBox(height: 12),
-                                // Bouton simplifié et moins visible
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: TextButton.icon(
-                                    onPressed: _saving ? null : _createClientInline,
-                                    icon: Icon(Icons.person_add_outlined, size: 16, color: textColorSecondary),
-                                    label: Text('Ajouter un client', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w400, color: textColorSecondary)),
-                                    style: TextButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(vertical: 12),
-                                      foregroundColor: textColorSecondary,
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                    ),
+                                TextFormField(
+                                  controller: _amountCtl,
+                                  keyboardType: TextInputType.numberWithOptions(decimal: true),
+                                  style: TextStyle(
+                                    color: textColor,
+                                    fontSize: 32,
+                                    fontWeight: FontWeight.w300,
+                                    height: 1,
                                   ),
+                                  decoration: InputDecoration(
+                                    hintText: '0',
+                                    hintStyle: TextStyle(
+                                      color: textColorSecondary,
+                                      fontSize: 32,
+                                      fontWeight: FontWeight.w300,
+                                    ),
+                                    suffix: Text(
+                                      ' F',
+                                      style: TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.w500,
+                                        color: textColorSecondary,
+                                      ),
+                                    ),
+                                    border: InputBorder.none,
+                                    isDense: true,
+                                    contentPadding: EdgeInsets.zero,
+                                  ),
+                                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Requis' : null,
                                 ),
                               ],
                             ),
                           ),
 
-                          const SizedBox(height: 32),
+                          const SizedBox(height: 16),
 
-                          // Notes Section - AVANT la date d'échéance
-                          _buildSection(
-                            title: 'NOTES',
-                            icon: Icons.note_outlined,
-                            isOptional: true,
+                          // Client selector - Minimaliste
+                          Container(
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: borderColor,
+                                width: 0.5,
+                              ),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'CLIENT',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 1.5,
+                                    color: textColorSecondary,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: DropdownButtonFormField<int>(
+                                        value: _clientId,
+                                        isExpanded: true,
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                          color: textColor,
+                                        ),
+                                        items: widget.clients.map<DropdownMenuItem<int>>((cl) {
+                                          final clientNumber = (cl['client_number'] ?? '').toString().isNotEmpty ? ' · ${cl['client_number']}' : '';
+                                          return DropdownMenuItem(
+                                            value: cl['id'],
+                                            child: Text(
+                                              '${cl['name'] ?? 'Client'}$clientNumber',
+                                              style: TextStyle(color: textColor),
+                                            ),
+                                          );
+                                        }).toList(),
+                                        onChanged: (v) => setState(() => _clientId = v),
+                                        decoration: const InputDecoration(
+                                          border: InputBorder.none,
+                                          isDense: true,
+                                          contentPadding: EdgeInsets.zero,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    IconButton(
+                                      onPressed: _saving ? null : _createClientInline,
+                                      tooltip: 'Ajouter un client',
+                                      icon: Icon(
+                                        Icons.person_add_outlined,
+                                        size: 20,
+                                        color: textColorSecondary,
+                                      ),
+                                      padding: EdgeInsets.zero,
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 16),
+
+                          // Note - Minimaliste
+                          InkWell(
+                            onTap: _openNotesSheet,
                             child: Container(
                               decoration: BoxDecoration(
-                                color: subtleBackground,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: borderColor, width: 0.5),
-                              ),
-                              child: TextFormField(
-                                controller: _notesCtl,
-                                maxLines: 3,
-                                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w400, letterSpacing: -0.2, color: textColor),
-                                decoration: InputDecoration(
-                                  hintText: 'Ex: 1 kg de sucre, 2 pains...',
-                                  hintStyle: TextStyle(fontSize: 14, fontWeight: FontWeight.w300, letterSpacing: -0.2, color: borderColor),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide.none,
-                                  ),
-                                  contentPadding: const EdgeInsets.all(16),
+                                border: Border.all(
+                                  color: borderColor,
+                                  width: 0.5,
                                 ),
+                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'NOTE',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      letterSpacing: 1.5,
+                                      color: textColorSecondary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          _notesCtl.text.isEmpty ? 'Ajouter détails...' : _notesCtl.text,
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w400,
+                                            color: _notesCtl.text.isEmpty ? textColorSecondary : textColor,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      Icon(
+                                        Icons.chevron_right,
+                                        size: 18,
+                                        color: textColorSecondary,
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
                             ),
                           ),
 
-                          const SizedBox(height: 32),
+                          const SizedBox(height: 16),
 
-                          // Due Date Section - APRÈS les notes
-                          _buildSection(
-                            title: 'DATE D\'ÉCHÉANCE',
-                            icon: Icons.calendar_today_outlined,
-                            child: InkWell(
-                              onTap: _pickDue,
-                              borderRadius: BorderRadius.circular(12),
+                          // Date - Style comme l'image
+                          GestureDetector(
+                            onTap: _pickDue,
+                            child: MouseRegion(
+                              cursor: SystemMouseCursors.click,
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                                 decoration: BoxDecoration(
-                                  color: subtleBackground,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: borderColor, width: 0.5),
+                                  color: Colors.orange.withOpacity(0.1),
+                                  border: Border.all(
+                                    color: Colors.orange.withOpacity(0.3),
+                                    width: 0.5,
+                                  ),
+                                  borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
+                                    Icon(
+                                      Icons.calendar_today,
+                                      size: 14,
+                                      color: Colors.orange,
+                                    ),
+                                    const SizedBox(width: 8),
                                     Text(
-                                      _due == null ? 'Aucune échéance' : DateFormat('dd/MM/yyyy').format(_due!),
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w400,
-                                        letterSpacing: -0.2,
-                                        color: _due == null ? textColorTertiary : textColor,
+                                      _due == null
+                                          ? 'AUJOURD\'HUI'
+                                          : DateFormat('dd/MM/yyyy').format(_due!),
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.orange,
+                                        letterSpacing: 0.5,
                                       ),
                                     ),
-                                    Icon(Icons.calendar_today_outlined, size: 18, color: textColorSecondary),
+                                    const SizedBox(width: 8),
+                                    Icon(
+                                      Icons.edit,
+                                      size: 12,
+                                      color: Colors.orange.withOpacity(0.6),
+                                    ),
                                   ],
                                 ),
                               ),
                             ),
                           ),
 
-                          const SizedBox(height: 32),
-
-                          // Audio Section
-                          _buildSection(
-                            title: 'NOTE VOCALE',
-                            icon: Icons.mic_outlined,
-                            isOptional: true,
-                            child: Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: subtleBackground,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: _isRecording ? Colors.red.withOpacity(0.3) : borderColor, width: 0.5),
-                              ),
-                              child: _audioPath == null
-                                  ? Column(
-                                      children: [
-                                        if (_isRecording)
-                                          FadeTransition(
-                                            opacity: _pulseController,
-                                            child: Row(
-                                              children: [
-                                                Icon(Icons.fiber_manual_record, size: 12, color: Colors.red),
-                                                const SizedBox(width: 12),
-                                                Text('ENREGISTREMENT EN COURS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, letterSpacing: 1, color: Colors.red)),
-                                              ],
-                                            ),
-                                          )
-                                        else
-                                          Row(
-                                            children: [
-                                              Icon(Icons.mic_none_outlined, size: 18, color: textColorHint),
-                                              const SizedBox(width: 12),
-                                              Text('Aucun enregistrement', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w300, letterSpacing: -0.2, color: textColorTertiary)),
-                                            ],
-                                          ),
-                                        const SizedBox(height: 16),
-                                        SizedBox(
-                                          width: double.infinity,
-                                          child: ElevatedButton.icon(
-                                            onPressed: _saving ? null : (_isRecording ? _stopRecording : _startRecording),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: _isRecording ? Colors.red : (isDark ? Colors.white10 : Colors.black.withOpacity(0.1)),
-                                              foregroundColor: _isRecording ? Colors.white : textColor,
-                                              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
-                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                              elevation: 0,
-                                            ),
-                                            icon: Icon(_isRecording ? Icons.stop : Icons.mic, size: 18),
-                                            label: Text(
-                                              _isRecording ? 'ARRÊTER' : 'DÉMARRER',
-                                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    )
-                                  : Column(
-                                      children: [
-                                        Row(
-                                          children: [
-                                            Icon(Icons.check_circle_outline, size: 18, color: Colors.green),
-                                            const SizedBox(width: 12),
-                                            Text('Enregistrement sauvegardé', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w400, letterSpacing: -0.2, color: textColor)),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 16),
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: OutlinedButton.icon(
-                                                onPressed: _saving ? null : _playAudio,
-                                                style: OutlinedButton.styleFrom(
-                                                  padding: const EdgeInsets.symmetric(vertical: 14),
-                                                  side: BorderSide(color: borderColor, width: 0.5),
-                                                  foregroundColor: textColor,
-                                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                                ),
-                                                icon: Icon(Icons.play_arrow_outlined, size: 18),
-                                                label: Text('ÉCOUTER', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1, color: textColor)),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 12),
-                                            OutlinedButton(
-                                              onPressed: _saving ? null : _deleteAudio,
-                                              style: OutlinedButton.styleFrom(
-                                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                                                side: const BorderSide(color: Colors.red, width: 0.5),
-                                                foregroundColor: Colors.red,
-                                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                              ),
-                                              child: const Icon(Icons.delete_outline, size: 18),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                            ),
-                          ),
-
-                          const SizedBox(height: 60),
+                          const SizedBox(height: 20),
                         ],
                       ),
                     ),
@@ -774,41 +1111,77 @@ class _AddDebtPageState extends State<AddDebtPage> with SingleTickerProviderStat
                 ),
               ),
 
-              // Fixed Bottom Button
+              // Fixed Bottom Button - Minimaliste
               Container(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
                 decoration: BoxDecoration(
                   color: Theme.of(context).scaffoldBackgroundColor,
-                  border: Border(top: BorderSide(color: borderColor, width: 0.5)),
+                  border: Border(
+                    top: BorderSide(
+                      color: borderColor,
+                      width: 0.2,
+                    ),
+                  ),
                 ),
                 child: Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 600),
                     child: SizedBox(
                       width: double.infinity,
-                      child: ElevatedButton.icon(
+                      child: ElevatedButton(
                         onPressed: _saving ? null : _submit,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: isDark ? Colors.white : Colors.black,
-                          foregroundColor: isDark ? Colors.black : Colors.white,
-                          disabledBackgroundColor: isDark ? Colors.white24 : Colors.black26,
-                          disabledForegroundColor: isDark ? Colors.black38 : Colors.white54,
-                          padding: const EdgeInsets.symmetric(vertical: 18),
+                          backgroundColor: Colors.transparent,
+                          foregroundColor: Colors.orange,
+                          disabledBackgroundColor: Colors.transparent,
+                          disabledForegroundColor: Colors.orange.withOpacity(0.4),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
                           elevation: 0,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            side: BorderSide(
+                              color: Colors.orange.withOpacity(0.5),
+                              width: 0.5,
+                            ),
+                          ),
                         ),
-                        icon: _saving 
-                            ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                            : Icon(Icons.add_chart_outlined, size: 18),
-                        label: _saving
-                            ? const Text(
-                                'CRÉATION...',
-                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 1.5),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            if (_saving)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 10),
+                                child: SizedBox(
+                                  height: 14,
+                                  width: 14,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: const AlwaysStoppedAnimation(
+                                      Color.fromRGBO(213, 128, 1, 1),
+                                    ),
+                                  ),
+                                ),
                               )
-                            : const Text(
-                                'ENREGISTRER LA DETTE',
-                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 1.5),
+                            else
+                              Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: Icon(
+                                  Icons.add,
+                                  size: 18,
+                                  color: const Color.fromARGB(255, 215, 129, 0),
+                                ),
                               ),
+                            Text(
+                              _saving ? 'CRÉATION...' : 'CRÉER LA DETTE',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                letterSpacing: 1.2,
+                                color: Color.fromARGB(255, 232, 140, 1),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),

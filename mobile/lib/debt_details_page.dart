@@ -27,10 +27,10 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> {
   bool _changed = false;
   late AudioService _audioService;
   late Map _debt; // Copie locale de la dette
+  Map<String, dynamic>? _client; // ✅ Infos du client
   
   // États pour masquer/afficher les sections
-  bool _showAllPayments = false;
-  bool _showAllAdditions = false;
+  bool _showAllHistory = false;
   
   // Pour le refresh automatique
   final int _autoRefreshInterval = 2000; // 2 secondes
@@ -49,7 +49,7 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> {
     super.initState();
     _audioService = AudioService();
     _debt = Map.from(widget.debt); // Copie locale
-    _changed = false; // S'assurer que c'est false au démarrage
+    _changed = false;
     _loadAllData();
     _startAutoRefresh();
   }
@@ -69,6 +69,42 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> {
     });
   }
 
+  // ✅ Conversion sécurisée des nombres
+  double _parseDouble(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) {
+      return double.tryParse(value.replaceAll(' ', '')) ?? 0.0;
+    }
+    return 0.0;
+  }
+
+  // ✅ NOUVELLE FONCTION : Charger les infos du client
+  Future<void> _loadClientInfo() async {
+    if (_debt['client_id'] == null) return;
+    
+    try {
+      final headers = {
+        'Content-Type': 'application/json', 
+        if (widget.ownerPhone.isNotEmpty) 'x-owner': widget.ownerPhone
+      };
+      
+      final response = await http.get(
+        Uri.parse('$apiHost/clients/${_debt['client_id']}'), 
+        headers: headers
+      ).timeout(const Duration(seconds: 8));
+      
+      if (response.statusCode == 200 && mounted) {
+        setState(() {
+          _client = json.decode(response.body) as Map<String, dynamic>;
+        });
+      }
+    } catch (e) {
+      print('Erreur chargement client: $e');
+    }
+  }
+
   // ✅ FONCTION DE TRI DÉCROISSANT
   List _sortByDateDescending(List items, String dateField) {
     items.sort((a, b) {
@@ -77,6 +113,23 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> {
       return dateB.compareTo(dateA); // Ordre décroissant
     });
     return items;
+  }
+
+  // ✅ NOUVELLE FONCTION : Calculer le solde correctement
+  double _calculateRemaining(Map debt, List paymentList) {
+    try {
+      final debtAmount = _parseDouble(debt['amount']);
+      double totalPaid = 0.0;
+      
+      // Calculer le total des paiements
+      for (final payment in paymentList) {
+        totalPaid += _parseDouble(payment['amount']);
+      }
+      
+      return debtAmount - totalPaid;
+    } catch (_) {
+      return 0.0;
+    }
   }
 
   Future<void> _loadAllData({bool silent = false}) async {
@@ -115,10 +168,18 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> {
             // Mettre à jour les infos de la dette
             final updatedDebt = json.decode(responses[0].body) as Map;
             _debt.addAll(updatedDebt); // Utiliser la copie locale
+            
+            // ✅ CHARGER LES INFOS DU CLIENT SI NÉCESSAIRE
+            if (_client == null && _debt['client_id'] != null) {
+              _loadClientInfo();
+            }
           }
           if (responses[1].statusCode == 200) {
             // ✅ TRIER LES PAIEMENTS DU PLUS RÉCENT AU PLUS ANCIEN
             payments = _sortByDateDescending(json.decode(responses[1].body) as List, 'paid_at');
+            
+            // ✅ METTRE À JOUR LE SOLDE APRÈS AVOIR REÇU LES PAIEMENTS
+            _debt['remaining'] = _calculateRemaining(_debt, payments);
           }
           if (responses[2].statusCode == 200) {
             // ✅ TRIER LES ADDITIONS DU PLUS RÉCENT AU PLUS ANCIEN
@@ -135,26 +196,100 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> {
     }
   }
 
+  // ✅ MODIFIÉ : Rechargement après paiement
   Future<void> _addPayment() async {
-    final res = await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => AddPaymentPage(ownerPhone: widget.ownerPhone, debt: _debt))
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AddPaymentPage(
+          ownerPhone: widget.ownerPhone, 
+          debt: _debt,
+        )
+      )
     );
-    if (res == true) {
+    
+    // ✅ FORCER LE RECHARGEMENT APRÈS PAIEMENT
+    if (result == true) {
       _changed = true;
-      // Rechargement immédiat pour voir le résultat
+      // Rechargement immédiat et complet
+      await _loadAllData();
+      // Recharger aussi les infos client au cas où
+      if (_debt['client_id'] != null) {
+        await _loadClientInfo();
+      }
+    }
+  }
+
+  // ✅ MODIFIÉ : Rechargement après addition
+  Future<void> _addAddition() async {
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AddAdditionPage(
+          ownerPhone: widget.ownerPhone, 
+          debt: _debt
+        )
+      ),
+    );
+    
+    // ✅ FORCER LE RECHARGEMENT APRÈS ADDITION
+    if (result == true) {
+      _changed = true;
       await _loadAllData();
     }
   }
 
-  Future<void> _addAddition() async {
-    final res = await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => AddAdditionPage(ownerPhone: widget.ownerPhone, debt: _debt)),
+  // ✅ FONCTION : Avatar du client
+  Widget _buildClientAvatar() {
+    final hasAvatar = _client?['avatar_url'] != null && 
+                     _client!['avatar_url'].toString().isNotEmpty;
+    final clientName = _client?['name'] ?? _debt['client_name'] ?? 'Client';
+    final initials = _getInitials(clientName);
+    
+    return Container(
+      width: 60,
+      height: 60,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+          width: 2,
+        ),
+      ),
+      child: hasAvatar
+          ? ClipOval(
+              child: Image.network(
+                _client!['avatar_url'],
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return _buildInitialsAvatar(initials);
+                },
+              ),
+            )
+          : _buildInitialsAvatar(initials),
     );
-    if (res == true) {
-      _changed = true;
-      // Rechargement immédiat pour voir le résultat
-      await _loadAllData();
+  }
+
+  Widget _buildInitialsAvatar(String initials) {
+    return Center(
+      child: Text(
+        initials,
+        style: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+      ),
+    );
+  }
+
+  String _getInitials(String name) {
+    final parts = name.split(' ');
+    if (parts.length >= 2) {
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    } else if (name.isNotEmpty) {
+      return name.substring(0, 1).toUpperCase();
     }
+    return 'C';
   }
 
   Future<void> _deleteDebt() async {
@@ -312,7 +447,321 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> {
     );
   }
 
-  // Nouvelle fonction pour formater la date d'échéance de manière intelligente
+  // ✅ NOUVELLE FONCTION : Modifier la note
+  Future<void> _editNotes() async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final notesCtl = TextEditingController(text: _debt['notes'] ?? '');
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (ctx) => Dialog(
+        backgroundColor: Theme.of(context).cardColor,
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 500),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'MODIFIER LA NOTE',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.5,
+                  color: textColor,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: notesCtl,
+                maxLines: 5,
+                style: TextStyle(color: textColor),
+                decoration: InputDecoration(
+                  hintText: 'Entrez la note...',
+                  hintStyle: TextStyle(color: textColor.withOpacity(0.5)),
+                  border: OutlineInputBorder(
+                    borderSide: BorderSide(color: Theme.of(context).dividerColor, width: 0.5),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: Theme.of(context).dividerColor, width: 0.5),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: textColor, width: 1),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(false),
+                    child: Text(
+                      'ANNULER',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1,
+                        color: textColor,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton(
+                    onPressed: () => Navigator.of(ctx).pop(true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isDark ? Colors.white : Colors.black,
+                      foregroundColor: isDark ? Colors.black : Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
+                    ),
+                    child: Text(
+                      'ENREGISTRER',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1,
+                        color: isDark ? Colors.black : Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        final headers = {
+          'Content-Type': 'application/json',
+          if (widget.ownerPhone.isNotEmpty) 'x-owner': widget.ownerPhone
+        };
+
+        final res = await http.put(
+          Uri.parse('$apiHost/debts/${_debt['id']}'),
+          headers: headers,
+          body: json.encode({
+            'notes': notesCtl.text.trim(),
+          }),
+        ).timeout(const Duration(seconds: 8));
+
+        if (res.statusCode == 200) {
+          setState(() {
+            _debt['notes'] = notesCtl.text.trim();
+            _changed = true;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Note mise à jour')),
+          );
+        } else {
+          await _showMinimalDialog('Erreur', 'Impossible de mettre à jour la note');
+        }
+      } catch (e) {
+        await _showMinimalDialog('Erreur réseau', '$e');
+      }
+    }
+  }
+
+  // ✅ NOUVELLE FONCTION : Modifier la date d'échéance
+  Future<void> _editDueDate() async {
+    DateTime? selectedDate = _parseDate(_debt['due_date']);
+
+    final newDate = await showDatePicker(
+      context: context,
+      initialDate: selectedDate ?? DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: Theme.of(context).colorScheme.primary,
+              surface: Theme.of(context).cardColor,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (newDate != null) {
+      try {
+        final headers = {
+          'Content-Type': 'application/json',
+          if (widget.ownerPhone.isNotEmpty) 'x-owner': widget.ownerPhone
+        };
+
+        final res = await http.put(
+          Uri.parse('$apiHost/debts/${_debt['id']}'),
+          headers: headers,
+          body: json.encode({
+            'due_date': DateFormat('yyyy-MM-dd').format(newDate),
+          }),
+        ).timeout(const Duration(seconds: 8));
+
+        if (res.statusCode == 200) {
+          setState(() {
+            _debt['due_date'] = newDate.toIso8601String();
+            _changed = true;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Date mise à jour')),
+          );
+        } else {
+          await _showMinimalDialog('Erreur', 'Impossible de mettre à jour la date');
+        }
+      } catch (e) {
+        await _showMinimalDialog('Erreur réseau', '$e');
+      }
+    }
+  }
+
+  // ✅ NOUVELLE FONCTION : Fusionner et trier paiements + additions
+  List<Map<String, dynamic>> _getMergedHistory() {
+    final merged = <Map<String, dynamic>>[];
+    
+    // Ajouter les paiements
+    for (final p in payments) {
+      merged.add({
+        'type': 'payment',
+        'data': p,
+        'date': DateTime.parse(p['paid_at'] ?? DateTime.now().toIso8601String()),
+        'amount': p['amount'],
+      });
+    }
+    
+    // Ajouter les additions
+    for (final a in additions) {
+      merged.add({
+        'type': 'addition',
+        'data': a,
+        'date': DateTime.parse(a['added_at'] ?? DateTime.now().toIso8601String()),
+        'amount': a['amount'],
+      });
+    }
+    
+    // Trier par date décroissante (plus récent en premier)
+    merged.sort((a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime));
+    return merged;
+  }
+
+  // ✅ NOUVELLE FONCTION : Générer la liste d'historique unifié
+  List<Widget> _buildUnifiedHistory(Color textColor, Color textColorSecondary) {
+    final mergedHistory = _getMergedHistory();
+    
+    // Si pas d'historique
+    if (mergedHistory.isEmpty) {
+      return [
+        _buildEmptyState(
+          icon: Icons.history,
+          title: 'AUCUN HISTORIQUE',
+          subtitle: 'Aucun paiement ou addition enregistré',
+        ),
+      ];
+    }
+    
+    // Limiter à 5 items si pas "VOIR PLUS"
+    final displayedItems = _showAllHistory 
+        ? mergedHistory 
+        : mergedHistory.take(5).toList();
+    
+    return displayedItems.map((item) => _buildHistoryItem(item, textColor, textColorSecondary)).toList();
+  }
+
+  // ✅ NOUVELLE FONCTION : Widget pour un item d'historique
+  Widget _buildHistoryItem(Map<String, dynamic> item, Color textColor, Color textColorSecondary) {
+    final isPayment = item['type'] == 'payment';
+    final data = item['data'] as Map;
+    final amount = _parseDouble(item['amount']);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        border: Border.all(color: Theme.of(context).dividerColor.withOpacity(0.3)),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        leading: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: isPayment 
+                ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
+                : Colors.orange.withOpacity(0.1),
+          ),
+          child: Icon(
+            isPayment ? Icons.arrow_downward : Icons.arrow_upward,
+            color: isPayment 
+                ? Theme.of(context).colorScheme.primary
+                : Colors.orange,
+            size: 20,
+          ),
+        ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  isPayment ? 'Paiement reçu' : 'Montant ajouté',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: textColorSecondary,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              _fmtAmount(amount),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: isPayment 
+                    ? Theme.of(context).colorScheme.primary
+                    : Colors.orange,
+              ),
+            ),
+            if (data['notes'] != null && data['notes'].toString().isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                data['notes'].toString(),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: textColorSecondary,
+                  fontStyle: FontStyle.italic,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ],
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Text(
+            isPayment
+                ? _formatPaymentDate(data['paid_at'])
+                : _fmtDate(data['added_at']),
+            style: TextStyle(
+              fontSize: 12,
+              color: textColorSecondary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Fonction pour formater la date d'échéance de manière intelligente
   Widget _buildDueDateWidget(DateTime dueDate) {
     final now = DateTime.now();
     final difference = dueDate.difference(now);
@@ -344,26 +793,35 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> {
       icon = Icons.calendar_today;
     }
     
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 6),
-          Text(
-            text,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: color,
-            ),
+    // ✅ RENDU CLIQUABLE avec indicateur visuel
+    return GestureDetector(
+      onTap: _editDueDate,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            border: Border.all(color: color.withOpacity(0.3)),
           ),
-        ],
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 14, color: color),
+              const SizedBox(width: 6),
+              Text(
+                text,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(Icons.edit, size: 12, color: color.withOpacity(0.6)),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -375,20 +833,17 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> {
     final textColorSecondary = isDark ? Colors.white70 : Colors.black54;
     final borderColor = isDark ? Colors.white24 : Colors.black26;
 
-    double totalPaid = 0.0;
-    try {
-      totalPaid = payments.fold<double>(0.0, (s, p) => s + (double.tryParse(p['amount'].toString()) ?? 0.0));
-    } catch (_) {}
-    final amount = double.tryParse(_debt['amount'].toString()) ?? 0.0;
-    final remaining = (amount - totalPaid);
+    // ✅ CALCULS CORRECTS DU SOLDE
+    final remaining = _debt['remaining'] ?? _calculateRemaining(_debt, payments);
+    final amount = _parseDouble(_debt['amount']);
+    final totalPaid = amount - remaining; // Calcul inverse
     final progress = amount == 0 ? 0.0 : (totalPaid / amount).clamp(0.0, 1.0);
     
     // Parse due date for intelligent display
     final dueDate = _parseDate(_debt['due_date']);
 
-    // ✅ PRENDRE LES PREMIERS ÉLÉMENTS DE LA LISTE DÉJÀ TRIÉE (les plus récents)
-    final displayedPayments = _showAllPayments ? payments : payments.take(3).toList();
-    final displayedAdditions = _showAllAdditions ? additions : additions.take(3).toList();
+    // NOM DU CLIENT
+    final clientName = _client?['name'] ?? _debt['client_name'] ?? 'Client';
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -425,7 +880,7 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> {
       body: SafeArea(
         child: Column(
           children: [
-            // Header avec infos principales
+            // Header avec avatar et infos client
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(20),
@@ -435,39 +890,58 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Ligne avec avatar et nom du client
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
+                      // Avatar du client
+                      _buildClientAvatar(),
+                      const SizedBox(width: 16),
                       Expanded(
-                        child: Text(
-                          (_debt['client_name'] ?? '').toUpperCase(),
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w700,
-                            color: textColor,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              clientName.toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                                color: textColor,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Client',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w400,
+                                color: textColorSecondary,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       if (dueDate != null) _buildDueDateWidget(dueDate),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
                   
                   // Montant principal
-                  Text(
-                    _fmtAmount(amount),
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w300,
-                      color: textColor,
-                      height: 1,
+                  Center(
+                    child: Text(
+                      _fmtAmount(amount),
+                      style: TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.w300,
+                        color: textColor,
+                        height: 1,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
                   
-                  // Progression rapide
+                  // ✅ SECTION CORRIGÉE : Progression avec "JE DOIS"
                   Row(
                     children: [
                       Expanded(
@@ -500,7 +974,8 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> {
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
                             Text(
-                              'RESTE',
+                              // ✅ "JE DOIS" au lieu de "RESTE" quand c'est négatif
+                              remaining < 0 ? 'JE DOIS' : 'RESTE',
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
@@ -510,11 +985,15 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              _fmtAmount(remaining),
+                              // ✅ AFFICHAGE CLAIR SANS SIGNES NÉGATIFS
+                              remaining < 0 
+                                  ? '${_fmtAmount(remaining.abs())} au client'
+                                  : _fmtAmount(remaining),
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w700,
-                                color: remaining <= 0 ? Colors.green : Colors.red,
+                                // ✅ COULEURS DIFFÉRENTES : Bleu pour "je dois", Vert pour soldé, Rouge pour reste à payer
+                                color: remaining < 0 ? const Color.fromARGB(231, 141, 47, 219) : (remaining <= 0 ? Colors.green : Colors.red),
                               ),
                             ),
                           ],
@@ -572,7 +1051,7 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> {
                             ),
                             icon: Icon(Icons.add, size: 18),
                             label: Text(
-                              'AJOUTER',
+                              'Ajouter un prêt',
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
@@ -588,18 +1067,67 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> {
                     if (_debt['notes'] != null && _debt['notes'] != '') ...[
                       _buildSectionHeader('NOTES'),
                       const SizedBox(height: 12),
-                      Container(
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          border: Border.all(color: borderColor, width: 0.5),
+                      // ✅ RENDU CLIQUABLE pour modifier
+                      GestureDetector(
+                        onTap: _editNotes,
+                        child: MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: Container(
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              border: Border.all(color: borderColor, width: 0.5),
+                            ),
+                            padding: const EdgeInsets.all(16),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    _debt['notes'],
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w400,
+                                      color: textColor,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Icon(Icons.edit, size: 16, color: textColorSecondary.withOpacity(0.6)),
+                              ],
+                            ),
+                          ),
                         ),
-                        padding: const EdgeInsets.all(16),
-                        child: Text(
-                          _debt['notes'],
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w400,
-                            color: textColor,
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+
+                    // ✅ NOUVELLE SECTION : Ajouter une note si elle n'existe pas
+                    if (_debt['notes'] == null || _debt['notes'] == '') ...[
+                      GestureDetector(
+                        onTap: _editNotes,
+                        child: MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: Container(
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              border: Border.all(color: borderColor, width: 0.5),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            child: Row(
+                              children: [
+                                Icon(Icons.note_add_outlined, size: 18, color: textColorSecondary),
+                                const SizedBox(width: 12),
+                                Text(
+                                  'Ajouter une note',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w400,
+                                    color: textColorSecondary,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -643,26 +1171,26 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> {
                       const SizedBox(height: 24),
                     ],
 
-                    // Derniers paiements
+                    // Historique unifié (paiements + montants ajoutés)
                     _buildSectionHeader(
-                      'DERNIERS PAIEMENTS',
+                      'HISTORIQUE',
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            '${payments.length}',
+                            '${_getMergedHistory().length}',
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
                               color: textColorSecondary,
                             ),
                           ),
-                          if (payments.length > 3) ...[
+                          if (_getMergedHistory().length > 5) ...[
                             const SizedBox(width: 8),
                             GestureDetector(
                               onTap: () {
                                 setState(() {
-                                  _showAllPayments = !_showAllPayments;
+                                  _showAllHistory = !_showAllHistory;
                                 });
                               },
                               child: Container(
@@ -671,7 +1199,7 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> {
                                   border: Border.all(color: borderColor),
                                 ),
                                 child: Text(
-                                  _showAllPayments ? 'VOIR MOINS' : 'VOIR PLUS',
+                                  _showAllHistory ? 'VOIR MOINS' : 'VOIR PLUS',
                                   style: TextStyle(
                                     fontSize: 10,
                                     fontWeight: FontWeight.w600,
@@ -688,62 +1216,8 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> {
 
                     if (_loading)
                       Center(child: CircularProgressIndicator())
-                    else if (payments.isEmpty)
-                      _buildEmptyState(
-                        icon: Icons.payments_outlined,
-                        title: 'AUCUN PAIEMENT',
-                        subtitle: 'Aucun paiement enregistré',
-                      )
                     else
-                      // ✅ AFFICHER DIRECTEMENT SANS REVERSER
-                      ...displayedPayments.map((p) => _buildPaymentItem(p, textColor, textColorSecondary)).toList(),
-
-                    // Montants ajoutés
-                    if (additions.isNotEmpty) ...[
-                      const SizedBox(height: 24),
-                      _buildSectionHeader(
-                        'MONTANTS AJOUTÉS',
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              '${additions.length}',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: textColorSecondary,
-                              ),
-                            ),
-                            if (additions.length > 3) ...[
-                              const SizedBox(width: 8),
-                              GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    _showAllAdditions = !_showAllAdditions;
-                                  });
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    border: Border.all(color: borderColor),
-                                  ),
-                                  child: Text(
-                                    _showAllAdditions ? 'VOIR MOINS' : 'VOIR PLUS',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.orange,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      ...displayedAdditions.map((a) => _buildAdditionItem(a, textColor, textColorSecondary)).toList(),
-                    ],
+                      ..._buildUnifiedHistory(textColor, textColorSecondary),
 
                     const SizedBox(height: 20),
                     
@@ -829,126 +1303,6 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildPaymentItem(Map payment, Color textColor, Color textColorSecondary) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        border: Border.all(color: Theme.of(context).dividerColor.withOpacity(0.3)),
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-          ),
-          child: Icon(
-            Icons.monetization_on_outlined,
-            color: Theme.of(context).colorScheme.primary,
-            size: 20,
-          ),
-        ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              _fmtAmount(payment['amount']),
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: textColor,
-              ),
-            ),
-            if (payment['notes'] != null && payment['notes'].toString().isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(
-                payment['notes'].toString(),
-                style: TextStyle(
-                  fontSize: 12,
-                  color: textColorSecondary,
-                  fontStyle: FontStyle.italic,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ],
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Text(
-            _formatPaymentDate(payment['paid_at']),
-            style: TextStyle(
-              fontSize: 12,
-              color: textColorSecondary,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAdditionItem(Map addition, Color textColor, Color textColorSecondary) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        border: Border.all(color: Theme.of(context).dividerColor.withOpacity(0.3)),
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: Colors.orange.withOpacity(0.1),
-          ),
-          child: Icon(
-            Icons.add_circle_outline,
-            color: Colors.orange,
-            size: 20,
-          ),
-        ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              _fmtAmount(addition['amount']),
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.orange,
-              ),
-            ),
-            if (addition['notes'] != null && addition['notes'].toString().isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(
-                addition['notes'].toString(),
-                style: TextStyle(
-                  fontSize: 12,
-                  color: textColorSecondary,
-                  fontStyle: FontStyle.italic,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ],
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Text(
-            _fmtDate(addition['added_at']),
-            style: TextStyle(
-              fontSize: 12,
-              color: textColorSecondary,
-            ),
-          ),
-        ),
       ),
     );
   }

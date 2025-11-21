@@ -9,7 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 // google_fonts removed - using default text theme
-import 'package:cached_network_image/cached_network_image.dart';
+// avatar image now uses Image.network; removed cached_network_image usage
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'data/sync_service.dart';
 import 'team_screen.dart';
@@ -18,6 +18,7 @@ import 'settings_screen.dart';
 import 'login_page.dart';
 import 'add_debt_page.dart';
 import 'add_client_page.dart';
+import 'add_addition_page.dart';
 import 'debt_details_page.dart';
 import 'theme.dart';
 
@@ -265,6 +266,78 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _showClientActions(dynamic client, dynamic clientId) async {
+    if (client == null) return;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
+
+    final choice = await showDialog<String?>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        backgroundColor: Theme.of(context).cardColor,
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.of(ctx).pop('payment'),
+            child: Row(children: [Icon(Icons.monetization_on_outlined, color: Colors.green), const SizedBox(width: 12), Text('Ajouter paiement', style: TextStyle(color: textColor))]),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.of(ctx).pop('addition'),
+            child: Row(children: [Icon(Icons.add, color: Colors.orange), const SizedBox(width: 12), Text('Ajouter un prêt', style: TextStyle(color: textColor))]),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.of(ctx).pop('delete'),
+            child: Row(children: [Icon(Icons.delete, color: Colors.red), const SizedBox(width: 12), Text('Supprimer client', style: TextStyle(color: textColor))]),
+          ),
+        ],
+      ),
+    );
+
+    if (choice == null) return;
+
+    if (choice == 'payment') {
+      final debtWithClient = debts.firstWhere((d) => d['client_id'] == client['id'], orElse: () => null);
+      if (debtWithClient != null) {
+        final res = await Navigator.of(context).push(MaterialPageRoute(builder: (_) => AddPaymentPage(ownerPhone: widget.ownerPhone, debt: debtWithClient)));
+        if (res == true) await fetchDebts();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Aucune dette trouvée')));
+      }
+    } else if (choice == 'addition') {
+      final debtWithClient = debts.firstWhere((d) => d['client_id'] == client['id'], orElse: () => null);
+      if (debtWithClient != null) {
+        final res = await Navigator.of(context).push(MaterialPageRoute(builder: (_) => AddAdditionPage(ownerPhone: widget.ownerPhone, debt: debtWithClient)));
+        if (res == true) await fetchDebts();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Aucune dette trouvée pour ajouter un montant')));
+      }
+    } else if (choice == 'delete') {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: const Text('Supprimer le client'),
+          content: Text('Voulez-vous vraiment supprimer ${client['name'] ?? 'ce client'} ?'),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(c).pop(false), child: const Text('Annuler')),
+            ElevatedButton(onPressed: () => Navigator.of(c).pop(true), style: ElevatedButton.styleFrom(backgroundColor: Colors.red), child: const Text('Supprimer')),
+          ],
+        ),
+      );
+
+      if (confirm == true) {
+        try {
+          final headers = {'Content-Type': 'application/json', if (widget.ownerPhone.isNotEmpty) 'x-owner': widget.ownerPhone};
+          final res = await http.delete(Uri.parse('$apiHost/clients/${client['id']}'), headers: headers).timeout(const Duration(seconds: 8));
+          if (res.statusCode == 200) {
+            await fetchClients();
+            await fetchDebts();
+            if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Client supprimé')));
+          } else {
+            if (mounted) await showDialog(context: context, builder: (ctx) => AlertDialog(title: const Text('Erreur'), content: Text('Échec suppression: ${res.statusCode}\n${res.body}'), actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('OK'))]));
+          }
+        } catch (e) {
+          if (mounted) await showDialog(context: context, builder: (ctx) => AlertDialog(title: const Text('Erreur réseau'), content: Text('$e'), actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('OK'))]));
+        }
+      }
+    }
   }
 
   Future<void> _addDebtForClient(dynamic c) async {
@@ -411,53 +484,106 @@ class _HomePageState extends State<HomePage> {
 
     if (ok == true && amountCtl.text.trim().isNotEmpty) {
       try {
-        final body = {
-          'client_id': c['id'],
-          'amount': double.tryParse(amountCtl.text) ?? 0.0,
-          'due_date': due == null ? null : DateFormat('yyyy-MM-dd').format(due!),
-          'notes': notesCtl.text,
-        };
         final headers = {
           'Content-Type': 'application/json',
           if (widget.ownerPhone.isNotEmpty) 'x-owner': widget.ownerPhone
         };
-        final res = await http.post(
-          Uri.parse('$apiHost/debts'),
-          headers: headers,
-          body: json.encode(body),
-        ).timeout(const Duration(seconds: 8));
+        final amount = double.tryParse(amountCtl.text) ?? 0.0;
         
-        if (res.statusCode == 201) {
-          await fetchDebts();
-          if (mounted) {
-            setState(() {
-              if (c != null && c['id'] != null) _expandedClients.add(c['id']);
-            });
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Dette ajoutée')),
+        // Chercher s'il existe déjà une dette pour ce client
+        Map<String, dynamic>? existingDebt;
+        final debtsList = debts.where((d) => d != null && d['client_id'] == c['id']).toList();
+        if (debtsList.isNotEmpty) {
+          // Prendre la première dette (consolidée) de ce client
+          existingDebt = debtsList.first as Map<String, dynamic>;
+        }
+        
+        if (existingDebt != null) {
+          // Ajouter comme montant ajouté à la dette existante
+          final additionBody = {
+            'amount': amount,
+            'added_at': DateTime.now().toIso8601String(),
+            'notes': notesCtl.text.isNotEmpty ? notesCtl.text : 'Montant ajouté',
+          };
+          
+          final res = await http.post(
+            Uri.parse('$apiHost/debts/${existingDebt['id']}/add'),
+            headers: headers,
+            body: json.encode(additionBody),
+          ).timeout(const Duration(seconds: 8));
+          
+          if (res.statusCode == 200 || res.statusCode == 201) {
+            await fetchDebts();
+            if (mounted) {
+              setState(() {
+                if (c != null && c['id'] != null) _expandedClients.add(c['id']);
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Montant ajouté à la dette existante')),
+              );
+            }
+          } else {
+            await showDialog(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Erreur'),
+                content: Text('Échec ajout montant: ${res.statusCode}\n${res.body}'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    child: const Text('OK'),
+                  ),
+                ],
+              ),
             );
           }
         } else {
-          await showDialog(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: const Text('Erreur'),
-              content: Text('Échec création dette: ${res.statusCode}\n${res.body}'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(),
-                  child: const Text('OK'),
-                ),
-              ],
-            ),
-          );
+          // Créer une nouvelle dette
+          final body = {
+            'client_id': c['id'],
+            'amount': amount,
+            'due_date': due == null ? null : DateFormat('yyyy-MM-dd').format(due!),
+            'notes': notesCtl.text,
+          };
+          
+          final res = await http.post(
+            Uri.parse('$apiHost/debts'),
+            headers: headers,
+            body: json.encode(body),
+          ).timeout(const Duration(seconds: 8));
+          
+          if (res.statusCode == 201) {
+            await fetchDebts();
+            if (mounted) {
+              setState(() {
+                if (c != null && c['id'] != null) _expandedClients.add(c['id']);
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Dette ajoutée')),
+              );
+            }
+          } else {
+            await showDialog(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Erreur'),
+                content: Text('Échec création dette: ${res.statusCode}\n${res.body}'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    child: const Text('OK'),
+                  ),
+                ],
+              ),
+            );
+          }
         }
       } catch (e) {
         await showDialog(
           context: context,
           builder: (ctx) => AlertDialog(
             title: const Text('Erreur'),
-            content: Text('Erreur création dette: $e'),
+            content: Text('Erreur: $e'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(),
@@ -575,13 +701,55 @@ class _HomePageState extends State<HomePage> {
       
       if (res.statusCode == 200) {
         final list = json.decode(res.body) as List;
+        
+        // ✅ FUSIONNER LES DETTES PAR CLIENT
+        final Map<dynamic, List> debtsByClient = {};
+        for (final d in list) {
+          if (d == null) continue;
+          final clientId = d['client_id'];
+          if (clientId == null) continue;
+          if (!debtsByClient.containsKey(clientId)) {
+            debtsByClient[clientId] = [];
+          }
+          debtsByClient[clientId]!.add(d);
+        }
+        
+        // Créer une dette consolidée par client
+        final List mergedDebts = [];
+        for (final entry in debtsByClient.entries) {
+          final debtsForClient = entry.value;
+          
+          if (debtsForClient.isEmpty) continue;
+          
+          // Prendre la première dette comme base
+          final baseDept = Map.from(debtsForClient.first);
+          
+          // Sommer tous les montants
+          double totalAmount = 0.0;
+          double totalPaid = 0.0;
+          for (final d in debtsForClient) {
+            final amt = double.tryParse(d['amount']?.toString() ?? '0') ?? 0.0;
+            totalAmount += amt;
+            final paid = double.tryParse(d['total_paid']?.toString() ?? '0') ?? 0.0;
+            totalPaid += paid;
+          }
+          
+          // Mettre à jour la dette consolidée
+          baseDept['amount'] = totalAmount;
+          baseDept['total_paid'] = totalPaid;
+          baseDept['remaining'] = totalAmount - totalPaid;
+          baseDept['_original_debts'] = debtsForClient; // Garder l'historique
+          
+          mergedDebts.add(baseDept);
+        }
+        
         if (query != null && query.isNotEmpty) {
-          setState(() => debts = list.where((d) {
+          setState(() => debts = mergedDebts.where((d) {
             final clientName = _clientNameForDebt(d)?.toLowerCase() ?? '';
             return clientName.contains(query.toLowerCase());
           }).toList());
         } else {
-          setState(() => debts = list);
+          setState(() => debts = mergedDebts);
         }
       }
     } on TimeoutException {
@@ -616,6 +784,60 @@ class _HomePageState extends State<HomePage> {
       total += rem;
     }
     return total;
+  }
+
+  // Build client avatar similar to DebtDetailsPage
+  String _getInitials(String name) {
+    final parts = name.split(' ');
+    if (parts.length >= 2) {
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    } else if (name.isNotEmpty) {
+      return name.substring(0, 1).toUpperCase();
+    }
+    return 'C';
+  }
+
+  Widget _buildInitialsAvatar(String initials, double size) {
+    return Center(
+      child: Text(
+        initials,
+        style: TextStyle(
+          fontSize: size * 0.38,
+          fontWeight: FontWeight.w700,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildClientAvatarWidget(dynamic client, double size) {
+    final hasAvatar = client != null && client['avatar_url'] != null && client['avatar_url'].toString().isNotEmpty;
+    final clientName = client != null ? (client['name'] ?? 'Client') : 'Client';
+    final initials = _getInitials(clientName.toString());
+
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Theme.of(context).colorScheme.primary.withOpacity(0.08),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.primary.withOpacity(0.26),
+          width: 2,
+        ),
+      ),
+      child: hasAvatar
+          ? ClipOval(
+              child: Image.network(
+                client['avatar_url'],
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return _buildInitialsAvatar(initials, size);
+                },
+              ),
+            )
+          : _buildInitialsAvatar(initials, size),
+    );
   }
 
   Future<int?> createClient() async {
@@ -788,15 +1010,19 @@ class _HomePageState extends State<HomePage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        Text(
-                          'TOTAL À PERCEVOIR',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 1.5,
-                            color: textColorSecondary,
-                          ),
-                        ),
+                        // Show "TOTAL À PAYER" when overall total is negative (owner must pay)
+                        Builder(builder: (_) {
+                          final bool ownerOwe = totalToCollect < 0;
+                          return Text(
+                            ownerOwe ? 'TOTAL À PAYER' : 'TOTAL À PERCEVOIR',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 1.5,
+                              color: textColorSecondary,
+                            ),
+                          );
+                        }),
                         const SizedBox(height: 8),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -811,14 +1037,24 @@ class _HomePageState extends State<HomePage> {
                             ),
                             const SizedBox(width: 8),
                             _showTotalCard
-                                ? Text(
-                                    AppSettings().formatCurrency(totalToCollect),
-                                    style: TextStyle(
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.w200,
-                                      color: textColor,
-                                    ),
-                                  )
+                                ? Builder(builder: (_) {
+                                    final bool ownerOwe = totalToCollect < 0;
+                                    final display = ownerOwe
+                                        ? AppSettings().formatCurrency(totalToCollect.abs())
+                                        : AppSettings().formatCurrency(totalToCollect);
+                                    final Color amtColor = ownerOwe
+                                        ? const Color.fromARGB(231, 141, 47, 219)
+                                        : textColor;
+
+                                    return Text(
+                                      display,
+                                      style: TextStyle(
+                                        fontSize: 22,
+                                        fontWeight: FontWeight.w200,
+                                        color: amtColor,
+                                      ),
+                                    );
+                                  })
                                 : Text(
                                     '••••••',
                                     style: TextStyle(
@@ -864,65 +1100,7 @@ class _HomePageState extends State<HomePage> {
     child: Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        GestureDetector(
-          onTap: () async {
-            final newId = await createClient();
-            if (newId != null) {
-              await fetchClients();
-              await fetchDebts();
-            }
-          },
-          child: Column(
-            children: [
-              Icon(Icons.person_add, size: 24, color: textColor),
-              const SizedBox(height: 4),
-              Text(
-                'CLIENT',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: 0.3,
-                  color: textColorSecondary,
-                ),
-              ),
-            ],
-          ),
-        ),
         const SizedBox(width: 32),
-        GestureDetector(
-          onTap: () async {
-            final res = await Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => AddDebtPage(
-                  ownerPhone: widget.ownerPhone,
-                  clients: clients,
-                  preselectedClientId: null,
-                ),
-              ),
-            );
-            if (res == true) {
-              await fetchDebts();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Dette ajoutée')),
-              );
-            }
-          },
-          child: Column(
-            children: [
-              Icon(Icons.add, size: 24, color: textColor),
-              const SizedBox(height: 4),
-              Text(
-                'DETTE',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: 0.3,
-                  color: textColorSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
                   ],
                 ),
               ),
@@ -1038,7 +1216,7 @@ class _HomePageState extends State<HomePage> {
           final clientDebts = entry.value;
           final client = clients.firstWhere((x) => x['id'] == cid, orElse: () => null);
           final clientName = client != null ? client['name'] : (cid == 'unknown' ? 'Clients inconnus' : 'Client $cid');
-          final avatarUrl = client != null ? client['avatar_url'] : null;
+          
 
           double totalRemaining = 0.0;
           for (final d in clientDebts) {
@@ -1090,27 +1268,10 @@ class _HomePageState extends State<HomePage> {
                     padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 0),
                     child: Row(
                       children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).brightness == Brightness.light ? Colors.grey[100] : Colors.grey[900],
-                          ),
-                          child: avatarUrl != null && avatarUrl != ''
-                              ? CachedNetworkImage(
-                                  imageUrl: avatarUrl,
-                                  fit: BoxFit.cover,
-                                  errorWidget: (context, url, error) => Icon(
-                                    Icons.person_outline,
-                                    color: textColorSecondary,
-                                    size: 20,
-                                  ),
-                                )
-                              : Icon(
-                                  Icons.person_outline,
-                                  color: textColorSecondary,
-                                  size: 20,
-                                ),
+                        // Avatar styled like DebtDetailsPage
+                        Padding(
+                          padding: const EdgeInsets.only(left: 0),
+                          child: _buildClientAvatarWidget(client, 44),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -1141,23 +1302,40 @@ class _HomePageState extends State<HomePage> {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            Text(
-                              AppSettings().formatCurrency(totalRemaining),
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w400,
-                                color: totalRemaining > 0 ? const Color.fromARGB(224, 219, 132, 2) : Colors.green,
-                              ),
+                            Builder(builder: (_) {
+                              final bool clientOwe = totalRemaining < 0;
+                              return Text(
+                                clientOwe ? 'JE DOIS' : 'À percevoir',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: textColorSecondary,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              );
+                            }),
+                            const SizedBox(height: 2),
+                            Builder(
+                              builder: (_) {
+                                final bool clientOwe = totalRemaining < 0;
+                                final display = clientOwe
+                                    ? AppSettings().formatCurrency(totalRemaining.abs())
+                                    : AppSettings().formatCurrency(totalRemaining);
+                                final Color col = clientOwe
+                                    ? const Color.fromARGB(231, 141, 47, 219)
+                                    : (totalRemaining > 0 ? const Color.fromARGB(224, 219, 132, 2) : Colors.green);
+
+                                return Text(
+                                  display,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: col,
+                                  ),
+                                );
+                              },
                             ),
                             const SizedBox(height: 8),
-                            Text(
-                              '$unpaidCount',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: unpaidCount > 0 ? Colors.red : Colors.green,
-                              ),
-                            ),
+                           
                           ],
                         ),
                         const SizedBox(width: 12),
@@ -1218,9 +1396,8 @@ class _HomePageState extends State<HomePage> {
                           child: Icon(Icons.more_vert, color: textColor, size: 16),
                         ),
                         AnimatedRotation(
-                          turns: isOpen ? 0.5 : 0.0,
+                          turns: isOpen ? 0.25 : 0.0,
                           duration: const Duration(milliseconds: 200),
-                          child: Icon(Icons.expand_more, color: textColorSecondary),
                         ),
                       ],
                     ),
@@ -1298,23 +1475,36 @@ class _HomePageState extends State<HomePage> {
                                   Column(
                                     crossAxisAlignment: CrossAxisAlignment.end,
                                     children: [
-                                      Text(
-                                        'RESTE',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w600,
-                                          color: textColorSecondary,
-                                        ),
-                                      ),
+                                      Builder(builder: (_) {
+                                        final bool isOwe = remainingVal < 0;
+                                        return Text(
+                                          isOwe ? 'JE DOIS' : 'RESTE',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                            color: textColorSecondary,
+                                          ),
+                                        );
+                                      }),
                                       const SizedBox(height: 4),
-                                      Text(
-                                        AppSettings().formatCurrency(remainingVal),
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w600,
-                                          color: isPaid ? Colors.green : (isOverdue ? Colors.red : textColor),
-                                        ),
-                                      ),
+                                      Builder(builder: (_) {
+                                        final bool isOwe = remainingVal < 0;
+                                        final display = isOwe
+                                            ? AppSettings().formatCurrency(remainingVal.abs())
+                                            : AppSettings().formatCurrency(remainingVal);
+                                        final Color col = isOwe
+                                            ? const Color.fromARGB(231, 141, 47, 219)
+                                            : (remainingVal <= 0 ? Colors.green : (isOverdue ? Colors.red : textColor));
+
+                                        return Text(
+                                          display,
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                            color: col,
+                                          ),
+                                        );
+                                      }),
                                     ],
                                   ),
                                   const SizedBox(width: 12),
@@ -1378,28 +1568,7 @@ class _HomePageState extends State<HomePage> {
             ),
             child: ListTile(
               contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
-              leading: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).brightness == Brightness.light ? Colors.grey[100] : Colors.grey[900],
-                ),
-                child: c['avatar_url'] != null && c['avatar_url'] != ''
-                    ? CachedNetworkImage(
-                        imageUrl: c['avatar_url'],
-                        fit: BoxFit.cover,
-                        errorWidget: (context, url, error) => Icon(
-                          Icons.person_outline,
-                          color: textColorSecondary,
-                          size: 20,
-                        ),
-                      )
-                    : Icon(
-                        Icons.person_outline,
-                        color: textColorSecondary,
-                        size: 20,
-                      ),
-              ),
+              leading: _buildClientAvatarWidget(c, 40),
               title: Text(
                 c['name'].toString().toUpperCase(),
                 style: TextStyle(
@@ -1421,23 +1590,33 @@ class _HomePageState extends State<HomePage> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Text(
-                        'À percevoir',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: textColorSecondary,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
+                      Builder(builder: (_) {
+                        final bool clientOwe = totalRemaining < 0;
+                        return Text(
+                          clientOwe ? 'JE DOIS' : 'À percevoir',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: textColorSecondary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        );
+                      }),
                       const SizedBox(height: 2),
-                      Text(
-                        AppSettings().formatCurrency(totalRemaining),
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: totalRemaining > 0 ? Colors.orange : Colors.green,
-                        ),
-                      ),
+                      Builder(builder: (_) {
+                        final bool clientOwe = totalRemaining < 0;
+                        final display = clientOwe
+                            ? AppSettings().formatCurrency(totalRemaining.abs())
+                            : AppSettings().formatCurrency(totalRemaining);
+                        final Color col = clientOwe ? const Color.fromARGB(231, 141, 47, 219) : (totalRemaining > 0 ? Colors.orange : Colors.green);
+                        return Text(
+                          display,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: col,
+                          ),
+                        );
+                      }),
                     ],
                   ),
                   const SizedBox(width: 12),
@@ -1495,16 +1674,7 @@ class _HomePageState extends State<HomePage> {
                           ],
                         ),
                       ),
-                      PopupMenuItem<String>(
-                        value: 'debt',
-                        child: Row(
-                          children: [
-                            Icon(Icons.add_circle, size: 18, color: Colors.orange),
-                            const SizedBox(width: 8),
-                            Text('Ajouter dette', style: TextStyle(color: textColor)),
-                          ],
-                        ),
-                      ),
+                     
                     ],
                     offset: const Offset(0, 40),
                     child: Icon(Icons.more_vert, color: textColor, size: 16),
@@ -1639,27 +1809,70 @@ class _HomePageState extends State<HomePage> {
               border: Border(top: BorderSide(color: borderColor, width: 0.3)),
               color: Colors.transparent,
             ),
-            child: BottomNavigationBar(
-              currentIndex: _tabIndex,
-              onTap: (i) {
-                setState(() => _tabIndex = i);
-                if (i == 0 && _searchQuery.isNotEmpty) fetchDebts(query: _searchQuery);
-              },
-              backgroundColor: Colors.transparent,
-              selectedItemColor: textColor,
-              unselectedItemColor: textColorSecondary,
-              elevation: 0,
-              type: BottomNavigationBarType.fixed,
-              items: [
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.list_alt, size: 20, color: _tabIndex == 0 ? textColor : textColorSecondary),
-                  label: 'DETTES',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.people, size: 20, color: _tabIndex == 1 ? textColor : textColorSecondary),
-                  label: 'CLIENTS',
-                ),
-              ],
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+            child: SafeArea(
+              top: false,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Left tab: Dettes
+                  Expanded(
+                    child: InkWell(
+                      onTap: () {
+                        setState(() => _tabIndex = 0);
+                        if (_searchQuery.isNotEmpty) fetchDebts(query: _searchQuery);
+                      },
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.trending_down, size: 20, color: _tabIndex == 0 ? textColor : textColorSecondary),
+                          const SizedBox(height: 4),
+                          Text('DETTES', style: TextStyle(fontSize: 11, color: _tabIndex == 0 ? textColor : textColorSecondary)),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Center slim circular + button
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                    child: SizedBox(
+                      width: 56,
+                      height: 56,
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          await createDebt();
+                        },
+                        style: ElevatedButton.styleFrom(
+                          shape: const CircleBorder(),
+                          padding: const EdgeInsets.all(0),
+                          elevation: 2,
+                          backgroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black,
+                          foregroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.black : Colors.white,
+                        ),
+                        child: const Icon(Icons.add, size: 28),
+                      ),
+                    ),
+                  ),
+
+                  // Right tab: Clients
+                  Expanded(
+                    child: InkWell(
+                      onTap: () {
+                        setState(() => _tabIndex = 1);
+                      },
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.people, size: 20, color: _tabIndex == 1 ? textColor : textColorSecondary),
+                          const SizedBox(height: 4),
+                          Text('CLIENTS', style: TextStyle(fontSize: 11, color: _tabIndex == 1 ? textColor : textColorSecondary)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           );
         },

@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:intl/intl.dart'; // ✅ AJOUTER CET IMPORT
 
 class AddPaymentPage extends StatefulWidget {
   final String ownerPhone;
@@ -19,10 +20,38 @@ class _AddPaymentPageState extends State<AddPaymentPage> {
   final DateTime _paidAt = DateTime.now();
   bool _loading = false;
 
+  // ✅ Conversion sécurisée des nombres
+  double _parseDouble(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) {
+      return double.tryParse(value.replaceAll(' ', '')) ?? 0.0;
+    }
+    return 0.0;
+  }
+
+  // ✅ Calcul du montant maximum (maintenant informatif seulement)
+  double get _maxAllowedAmount {
+    final debtAmount = _parseDouble(widget.debt['amount']);
+    final totalPaid = _parseDouble(widget.debt['total_paid'] ?? 0);
+    return debtAmount - totalPaid;
+  }
+
+  // ✅ FORMATAGE DES MONTANTS
+  String _fmtAmount(dynamic v) {
+    try {
+      final n = double.tryParse(v?.toString() ?? '0') ?? 0.0;
+      return '${NumberFormat('#,###', 'fr_FR').format(n)} F';
+    } catch (_) { return v?.toString() ?? '-'; }
+  }
+
   Future<void> _submit() async {
     final text = _amountCtl.text.trim();
     if (text.isEmpty) return;
     final val = double.tryParse(text) ?? 0.0;
+    
+    // ✅ SUPPRIMÉ : Plus de validation de surpaiement
     if (val <= 0) return;
 
     setState(() => _loading = true);
@@ -41,8 +70,21 @@ class _AddPaymentPageState extends State<AddPaymentPage> {
 
       if (res.statusCode == 200 || res.statusCode == 201) {
         if (!mounted) return;
-        await _showMinimalDialog('Succès', 'Paiement enregistré avec succès!');
-        if (mounted) Navigator.of(context).pop(true); // Retourner true au parent
+        
+        // ✅ MESSAGE ADAPTÉ : Dette soldée ou créance inversée
+        final remaining = _maxAllowedAmount - val;
+        String message;
+        if (remaining <= 0) {
+          message = 'Paiement enregistré avec succès!';
+          if (remaining < 0) {
+            message += '\n\nVous devez maintenant ${_fmtAmount(remaining.abs())} au client.';
+          }
+        } else {
+          message = 'Paiement enregistré avec succès!';
+        }
+        
+        await _showMinimalDialog('Succès', message);
+        if (mounted) Navigator.of(context).pop(true);
       } else {
         if (!mounted) return;
         final msg = res.body;
@@ -129,8 +171,11 @@ class _AddPaymentPageState extends State<AddPaymentPage> {
           child: Column(
             children: [
               const SizedBox(height: 32),
+              
               Text('MONTANT DU PAIEMENT', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: textColorSecondary)),
               const SizedBox(height: 16),
+              
+              // Champ de saisie
               TextField(
                 controller: _amountCtl,
                 keyboardType: TextInputType.number,
@@ -145,21 +190,20 @@ class _AddPaymentPageState extends State<AddPaymentPage> {
                   contentPadding: const EdgeInsets.all(20),
                 ),
               ),
+              
               const SizedBox(height: 40),
+              
+              // Bouton d'enregistrement
               SizedBox(
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
                   onPressed: _loading ? null : _submit,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isDark ? Colors.white : Colors.black,
-                    foregroundColor: isDark ? Colors.black : Colors.white,
-                    disabledBackgroundColor: isDark ? Colors.white24 : Colors.black26,
-                    disabledForegroundColor: isDark ? Colors.black38 : Colors.white54,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
-                  ),
+                   style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.orange,
+                              side: BorderSide(color: Colors.orange.withOpacity(0.5)),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
                   child: _loading
                       ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                       : Text('ENREGISTRER LE PAIEMENT', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: isDark ? Colors.black : Colors.white)),

@@ -40,22 +40,61 @@ router.get('/:id', async (req, res) => {
 
 // Create a debt (associate with a client)
 // The API does not require the client to provide `creditor`/`debtor`.
+// ✅ MODIFICATION : Si une dette existe déjà pour ce client, ajouter comme montant ajouté
 router.post('/', async (req, res) => {
   const { client_id, amount, due_date, notes, audio_path } = req.body;
   try {
     // Determine creditor: prefer header 'x-owner' (set by client after login), otherwise use env BOUTIQUE_OWNER
     const creditorHeader = req.headers['x-owner'] || req.headers['X-Owner'];
     const creditor = creditorHeader || BOUTIQUE_OWNER;
-    const debtor = '';
-    const result = await pool.query(
-      'INSERT INTO debts (client_id, creditor, debtor, amount, due_date, notes, audio_path) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-      [client_id, creditor, debtor, amount, due_date, notes, audio_path]
+    
+    // ✅ NOUVEAU : Chercher s'il existe déjà une dette pour ce client
+    const existingDebtRes = await pool.query(
+      'SELECT id, amount FROM debts WHERE client_id=$1 AND creditor=$2 LIMIT 1',
+      [client_id, creditor]
     );
-    // log activity
-    try {
-      await pool.query('INSERT INTO activity_log(owner_phone, action, details) VALUES($1,$2,$3)', [creditor, 'create_debt', JSON.stringify({ debt_id: result.rows[0].id, client_id, amount })]);
-    } catch (e) { console.error('Activity log error:', e); }
-    res.status(201).json(result.rows[0]);
+    
+    if (existingDebtRes.rowCount > 0) {
+      // ✅ Une dette existe déjà : ajouter comme montant ajouté
+      const existingDebt = existingDebtRes.rows[0];
+      const addedAt = new Date();
+      
+      const insert = await pool.query(
+        'INSERT INTO debt_additions (debt_id, amount, added_at, notes) VALUES ($1, $2, $3, $4) RETURNING *',
+        [existingDebt.id, amount, addedAt, notes || 'Montant ajouté']
+      );
+      
+      // Update the debt's total amount
+      const newTotalAmount = parseFloat(existingDebt.amount) + parseFloat(amount);
+      await pool.query('UPDATE debts SET amount=$1 WHERE id=$2', [newTotalAmount, existingDebt.id]);
+      
+      // log addition activity
+      try {
+        await pool.query('INSERT INTO activity_log(owner_phone, action, details) VALUES($1,$2,$3)', [creditor, 'debt_addition', JSON.stringify({ addition_id: insert.rows[0].id, debt_id: existingDebt.id, amount })]);
+      } catch (e) { console.error('Activity log error:', e); }
+      
+      res.status(201).json({ 
+        type: 'addition',
+        addition: insert.rows[0], 
+        new_debt_amount: newTotalAmount,
+        debt_id: existingDebt.id 
+      });
+    } else {
+      // ✅ Aucune dette existante : créer une nouvelle
+      const result = await pool.query(
+        'INSERT INTO debts (client_id, creditor, amount, due_date, notes, audio_path) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+        [client_id, creditor, amount, due_date, notes, audio_path]
+      );
+      
+      // log activity
+      try {
+        await pool.query('INSERT INTO activity_log(owner_phone, action, details) VALUES($1,$2,$3)', [creditor, 'create_debt', JSON.stringify({ debt_id: result.rows[0].id, client_id, amount })]);
+      } catch (e) { console.error('Activity log error:', e); }
+      res.status(201).json({
+        type: 'debt',
+        ...result.rows[0]
+      });
+    }
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'DB error' });
@@ -209,11 +248,12 @@ router.get('/balances/:user', async (req, res) => {
       "SELECT COALESCE(SUM(amount),0) AS owed_to_user FROM debts WHERE creditor=$1 AND (paid IS FALSE OR paid IS NULL)",
       [user]
     );
-    const owesRes = await pool.query(
-      "SELECT COALESCE(SUM(amount),0) AS owes_user FROM debts WHERE debtor=$1 AND (paid IS FALSE OR paid IS NULL)",
-      [user]
-    );
-    res.json({ owed_to_user: owedToRes.rows[0].owed_to_user, owes_user: owesRes.rows[0].owes_user });
+    
+    // ✅ CORRIGÉ : Retirer la partie debtor qui n'existe plus
+    res.json({ 
+      owed_to_user: owedToRes.rows[0].owed_to_user, 
+      owes_user: 0 
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'DB error' });
