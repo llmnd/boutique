@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'app_settings.dart';
 
 class LoginPage extends StatefulWidget {
-  final void Function(String phone, String? shop, int? id, String? firstName, String? lastName) onLogin;
+  final void Function(String phone, String? shop, int? id, String? firstName, String? lastName, bool? boutiqueModeEnabled) onLogin;
   const LoginPage({super.key, required this.onLogin});
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -46,9 +46,12 @@ class _LoginPageState extends State<LoginPage> {
           final settings = AppSettings();
           await settings.initForOwner(data['phone']);
           await settings.setAuthToken(data['auth_token']);
+          if (data['boutique_mode_enabled'] != null) {
+            await settings.setBoutiqueModeEnabled(data['boutique_mode_enabled'] as bool);
+          }
         }
         
-        widget.onLogin(data['phone'], data['shop_name'], id, data['first_name'], data['last_name']);
+        widget.onLogin(data['phone'], data['shop_name'], id, data['first_name'], data['last_name'], data['boutique_mode_enabled'] as bool?);
       } else {
         final body = res.body;
         final lower = body.toLowerCase();
@@ -321,8 +324,8 @@ class _LoginPageState extends State<LoginPage> {
                                 onPressed: () => Navigator.of(context).push(
                                   MaterialPageRoute(
                                     builder: (_) => RegisterPage(
-                                      onRegister: (phone, shop, id, firstName, lastName) {
-                                        widget.onLogin(phone, shop, id, firstName, lastName);
+                                      onRegister: (phone, shop, id, firstName, lastName, boutiqueModeEnabled) {
+                                        widget.onLogin(phone, shop, id, firstName, lastName, boutiqueModeEnabled);
                                       },
                                     ),
                                   ),
@@ -356,7 +359,7 @@ class _LoginPageState extends State<LoginPage> {
 }
 
 class RegisterPage extends StatefulWidget {
-  final void Function(String phone, String? shop, int? id, String? firstName, String? lastName) onRegister;
+  final void Function(String phone, String? shop, int? id, String? firstName, String? lastName, bool? boutiqueModeEnabled) onRegister;
   const RegisterPage({super.key, required this.onRegister});
   @override
   State<RegisterPage> createState() => _RegisterPageState();
@@ -367,7 +370,6 @@ class _RegisterPageState extends State<RegisterPage> {
   final passCtl = TextEditingController();
   final firstNameCtl = TextEditingController();
   final lastNameCtl = TextEditingController();
-  final shopCtl = TextEditingController();
   final securityQuestionCtl = TextEditingController();
   final securityAnswerCtl = TextEditingController();
   bool loading = false;
@@ -388,7 +390,6 @@ class _RegisterPageState extends State<RegisterPage> {
         'password': passCtl.text,
         'first_name': firstNameCtl.text.trim(),
         'last_name': lastNameCtl.text.trim(),
-        'shop_name': shopCtl.text.trim(),
         'security_question': securityQuestionCtl.text.trim(),
         'security_answer': securityAnswerCtl.text.trim()
       };
@@ -407,9 +408,12 @@ class _RegisterPageState extends State<RegisterPage> {
           final settings = AppSettings();
           await settings.initForOwner(data['phone']);
           await settings.setAuthToken(data['auth_token']);
+          if (data['boutique_mode_enabled'] != null) {
+            await settings.setBoutiqueModeEnabled(data['boutique_mode_enabled'] as bool);
+          }
         }
         
-        widget.onRegister(data['phone'], data['shop_name'], id, data['first_name'], data['last_name']);
+        widget.onRegister(data['phone'], null, id, data['first_name'], data['last_name'], data['boutique_mode_enabled'] as bool?);
         Navigator.of(context).pop();
       } else {
         await _showMinimalDialog('Erreur', 'Inscription échouée: ${res.statusCode}\n${res.body}');
@@ -613,29 +617,6 @@ class _RegisterPageState extends State<RegisterPage> {
                             style: TextStyle(color: textColor, fontSize: 15),
                             decoration: InputDecoration(
                               labelText: 'Mot de passe',
-                              labelStyle: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w400,
-                                color: textColorSecondary,
-                              ),
-                              border: const OutlineInputBorder(borderSide: BorderSide(width: 0.5)),
-                              enabledBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: borderColor, width: 0.5),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: textColor, width: 1),
-                              ),
-                              contentPadding: const EdgeInsets.all(16),
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-
-                          // Shop Name
-                          TextField(
-                            controller: shopCtl,
-                            style: TextStyle(color: textColor, fontSize: 15),
-                            decoration: InputDecoration(
-                              labelText: 'Nom de la boutique (optionnel)',
                               labelStyle: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w400,

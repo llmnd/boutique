@@ -18,7 +18,7 @@ class AddDebtPage extends StatefulWidget {
   _AddDebtPageState createState() => _AddDebtPageState();
 }
 
-class _AddDebtPageState extends State<AddDebtPage> with SingleTickerProviderStateMixin {
+class _AddDebtPageState extends State<AddDebtPage> with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   int? _clientId;
   final TextEditingController _amountCtl = TextEditingController();
@@ -29,6 +29,9 @@ class _AddDebtPageState extends State<AddDebtPage> with SingleTickerProviderStat
   String? _audioPath;
   bool _isRecording = false;
   late AnimationController _pulseController;
+  late AnimationController _amountAnimationCtl;
+  List<double> _recentAmounts = [];
+  double _displayAmount = 0.0;
 
   String get apiHost {
     if (kIsWeb) return 'http://localhost:3000/api';
@@ -48,6 +51,13 @@ class _AddDebtPageState extends State<AddDebtPage> with SingleTickerProviderStat
       duration: const Duration(milliseconds: 1500),
     )..repeat(reverse: true);
     
+    _amountAnimationCtl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    
+    _amountCtl.addListener(_updateDisplayAmount);
+    
     int? validClientId;
     if (widget.preselectedClientId != null && widget.clients.isNotEmpty) {
       final exists = widget.clients.any((c) => c['id'] == widget.preselectedClientId);
@@ -57,6 +67,22 @@ class _AddDebtPageState extends State<AddDebtPage> with SingleTickerProviderStat
     }
     
     _clientId = validClientId ?? (widget.clients.isNotEmpty ? widget.clients.first['id'] : null);
+  }
+  
+  void _updateDisplayAmount() {
+    final newAmount = double.tryParse(_amountCtl.text.replaceAll(',', '')) ?? 0.0;
+    if (newAmount != _displayAmount) {
+      _amountAnimationCtl.forward(from: 0.0);
+      setState(() {
+        _displayAmount = newAmount;
+        if (newAmount > 0 && !_recentAmounts.contains(newAmount)) {
+          _recentAmounts.insert(0, newAmount);
+          if (_recentAmounts.length > 3) {
+            _recentAmounts.removeLast();
+          }
+        }
+      });
+    }
   }
 
   Future<void> _initializeDateFormatting() async {
@@ -70,7 +96,9 @@ class _AddDebtPageState extends State<AddDebtPage> with SingleTickerProviderStat
   @override
   void dispose() {
     _pulseController.dispose();
+    _amountAnimationCtl.dispose();
     _audioService.dispose();
+    _amountCtl.removeListener(_updateDisplayAmount);
     _amountCtl.dispose();
     _notesCtl.dispose();
     super.dispose();
@@ -846,23 +874,130 @@ class _AddDebtPageState extends State<AddDebtPage> with SingleTickerProviderStat
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        leading: IconButton(
-          icon: Icon(Icons.close, color: textColor, size: 24),
-          onPressed: () => Navigator.of(context).pop(false),
-        ),
-        title: Text(
-          'NOUVELLE DETTE',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 2.5,
-            color: textColor,
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(140),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.orange.withOpacity(0.08),
+                Colors.orange.withOpacity(0.04),
+                subtleAccent.withOpacity(0.06),
+              ],
+            ),
+            border: Border(
+              bottom: BorderSide(
+                color: Colors.orange.withOpacity(0.1),
+                width: 0.5,
+              ),
+            ),
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Header top avec close button
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      IconButton(
+                        onPressed: () => Navigator.of(context).pop(false),
+                        icon: Icon(Icons.close, color: textColor, size: 24),
+                        padding: EdgeInsets.zero,
+                        splashRadius: 24,
+                      ),
+                      Spacer(),
+                      // Indicateur décoratif
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.1),
+                          border: Border.all(
+                            color: Colors.orange.withOpacity(0.2),
+                            width: 0.5,
+                          ),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 6,
+                              height: 6,
+                              decoration: const BoxDecoration(
+                                color: Colors.orange,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'EN COURS',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1,
+                                color: Colors.orange,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  // Title avec accent
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 3,
+                            height: 24,
+                            decoration: BoxDecoration(
+                              color: Colors.orange,
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            'NOUVELLE DETTE',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 2,
+                              color: textColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 15),
+                        child: Text(
+                          'Enregistrez un nouveau montant à recouvrer',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w400,
+                            color: textColorSecondary,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
-        centerTitle: true,
       ),
       body: SafeArea(
         child: Form(
@@ -933,6 +1068,89 @@ class _AddDebtPageState extends State<AddDebtPage> with SingleTickerProviderStat
                               ],
                             ),
                           ),
+
+                          // 🌟 Montants récents avec animation
+                          if (_recentAmounts.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            ScaleTransition(
+                              scale: Tween<double>(begin: 0.8, end: 1.0)
+                                  .animate(CurvedAnimation(
+                                parent: _amountAnimationCtl,
+                                curve: Curves.elasticOut,
+                              )),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: subtleAccent.withOpacity(0.08),
+                                  border: Border.all(
+                                    color: subtleAccent.withOpacity(0.2),
+                                    width: 0.5,
+                                  ),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'MONTANTS RÉCENTS',
+                                      style: TextStyle(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w600,
+                                        letterSpacing: 1.2,
+                                        color: subtleAccent.withOpacity(0.5),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Wrap(
+                                      spacing: 6,
+                                      runSpacing: 4,
+                                      children: _recentAmounts
+                                          .map(
+                                            (amount) => GestureDetector(
+                                              onTap: () {
+                                                setState(() {
+                                                  _amountCtl.text =
+                                                      amount.toStringAsFixed(0);
+                                                });
+                                              },
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(
+                                                  horizontal: 10,
+                                                  vertical: 4,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: subtleAccent
+                                                      .withOpacity(0.15),
+                                                  border: Border.all(
+                                                    color: subtleAccent
+                                                        .withOpacity(0.3),
+                                                    width: 0.5,
+                                                  ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(4),
+                                                ),
+                                                child: Text(
+                                                  NumberFormat('#,###', 'fr_FR')
+                                                      .format(amount),
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w500,
+                                                    color: subtleAccent,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          )
+                                          .toList(),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
 
                           const SizedBox(height: 16),
 

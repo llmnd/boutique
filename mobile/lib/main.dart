@@ -129,7 +129,7 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
-  Future setOwner({required String phone, String? shopName, int? id, String? firstName, String? lastName}) async {
+  Future setOwner({required String phone, String? shopName, int? id, String? firstName, String? lastName, bool? boutiqueModeEnabled}) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('owner_phone', phone);
     if (shopName != null) await prefs.setString('owner_shop_name', shopName);
@@ -160,7 +160,7 @@ class _MyAppState extends State<MyApp> {
       title: 'Boutique - Gestion de dettes',
       theme: getAppTheme(lightMode: _appSettings.lightMode),
       home: ownerPhone == null
-          ? LoginPage(onLogin: (phone, shop, id, firstName, lastName) => setOwner(phone: phone, shopName: shop, id: id, firstName: firstName, lastName: lastName))
+          ? LoginPage(onLogin: (phone, shop, id, firstName, lastName, boutiqueModeEnabled) => setOwner(phone: phone, shopName: shop, id: id, firstName: firstName, lastName: lastName, boutiqueModeEnabled: boutiqueModeEnabled))
           : HomePage(ownerPhone: ownerPhone!, ownerShopName: ownerShopName, onLogout: clearOwner),
     );
   }
@@ -992,7 +992,7 @@ class _HomePageState extends State<HomePage> {
       onRefresh: () async => await fetchDebts(),
       child: ListView.builder(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        itemCount: groups.length + 1,
+        itemCount: groups.length + 2,
         itemBuilder: (ctx, gi) {
           if (gi == 0) {
             return Column(
@@ -1066,45 +1066,94 @@ class _HomePageState extends State<HomePage> {
                           ],
                         ),
                         const SizedBox(height: 12),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              'DETTES IMPAYÉES',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 1.5,
-                                color: textColorSecondary,
-                              ),
+                        // 💎 DETTES IMPAYÉES - Carte compacte
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: totalUnpaid > 0
+                                  ? [
+                                      Colors.red.withOpacity(0.08),
+                                      Colors.red.withOpacity(0.03),
+                                    ]
+                                  : [
+                                      Colors.green.withOpacity(0.08),
+                                      Colors.green.withOpacity(0.03),
+                                    ],
                             ),
-                            const SizedBox(width: 12),
-                            Text(
-                              '$totalUnpaid',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: totalUnpaid > 0 ? Colors.red : Colors.green,
-                              ),
+                            border: Border.all(
+                              color: totalUnpaid > 0
+                                  ? Colors.red.withOpacity(0.2)
+                                  : Colors.green.withOpacity(0.2),
+                              width: 0.5,
                             ),
-                          ],
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    totalUnpaid > 0
+                                        ? Icons.warning_amber_rounded
+                                        : Icons.check_circle_outline,
+                                    size: 14,
+                                    color: totalUnpaid > 0 ? Colors.red : Colors.green,
+                                  ),
+                                  const SizedBox(width: 9),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'IMPAYÉES',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w400,
+                                          letterSpacing: 0.8,
+                                          color: textColorSecondary,
+                                        ),
+                                      ),
+                                      if (totalUnpaid > 0)
+                                        Text(
+                                          'à recouvrer',
+                                          style: TextStyle(
+                                            fontSize: 9,
+                                            color: textColorSecondary,
+                                            fontWeight: FontWeight.w400,
+                                          ),
+                                        )
+                                      else
+                                        Text(
+                                          'tout payé',
+                                          style: TextStyle(
+                                            fontSize: 9,
+                                            color: textColorSecondary,
+                                            fontWeight: FontWeight.w400,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              Text(
+                                '$totalUnpaid',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  color: totalUnpaid > 0 ? Colors.red : Colors.green,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
                   ),
                 ),
-                const SizedBox(height: 16),
-                // Action Buttons - Minimal Zara style
-                Center(
-  child: IntrinsicWidth(
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const SizedBox(width: 32),
-                  ],
-                ),
-              ),
-            ),
                 const SizedBox(height: 20),
                 // Filtre par montant
                 GestureDetector(
@@ -1211,6 +1260,127 @@ class _HomePageState extends State<HomePage> {
             );
           }
 
+          // 💎 CLIENTS À RISQUE - afficher à la fin
+          if (gi == groups.length + 1) {
+            if (totalUnpaid <= 0) return const SizedBox.shrink();
+
+            return Builder(
+              builder: (_) {
+                // Calculer les clients avec le plus de dettes impayées
+                final Map<dynamic, double> clientDebtsMap = {};
+                for (final d in filteredDebts) {
+                  final amt = double.tryParse(d['amount']?.toString() ?? '0') ?? 0.0;
+                  double rem = amt;
+                  try {
+                    if (d != null && d['remaining'] != null) {
+                      rem = double.tryParse(d['remaining'].toString()) ?? rem;
+                    } else if (d != null && d['total_paid'] != null) {
+                      rem = amt - (double.tryParse(d['total_paid'].toString()) ?? 0.0);
+                    }
+                  } catch (_) {}
+                  if (rem > 0) {
+                    final cid = d['client_id'] ?? 'unknown';
+                    clientDebtsMap[cid] = (clientDebtsMap[cid] ?? 0.0) + rem;
+                  }
+                }
+
+                if (clientDebtsMap.isEmpty) return const SizedBox.shrink();
+
+                final topClients = clientDebtsMap.entries.toList()
+                  ..sort((a, b) => b.value.compareTo(a.value));
+                final top3 = topClients.take(3).toList();
+
+                return Column(
+                  children: [
+                    Container(height: 0.5, color: borderColor, margin: const EdgeInsets.symmetric(vertical: 16)),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      child: Row(
+                        children: [
+                          Icon(Icons.trending_down, size: 14, color: Colors.red),
+                          const SizedBox(width: 8),
+                          Text(
+                            'CLIENTS À RISQUE',
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 1.2,
+                              color: textColorSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    ...top3.asMap().entries.map((entry) {
+                      final idx = entry.key;
+                      final item = entry.value;
+                      final cid = item.key;
+                      final amount = item.value;
+                      final client = clients.firstWhere((x) => x['id'] == cid, orElse: () => null);
+                      final clientName = client != null ? client['name']?.toString().toUpperCase() ?? 'Client' : 'Client inconnu';
+
+                      return Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withOpacity(0.08),
+                          border: Border.all(color: Colors.red.withOpacity(0.15), width: 0.5),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    clientName,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: textColor,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '#${idx + 1} client',
+                                    style: TextStyle(
+                                      fontSize: 8,
+                                      color: textColorSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.red.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                AppSettings().formatCurrency(amount),
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.red,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                    const SizedBox(height: 20),
+                  ],
+                );
+              },
+            );
+          }
+
           final entry = groups[gi - 1];
           final cid = entry.key;
           final clientDebts = entry.value;
@@ -1230,20 +1400,6 @@ class _HomePageState extends State<HomePage> {
               }
             } catch (_) {}
             totalRemaining += rem;
-          }
-
-          int unpaidCount = 0;
-          for (final d in clientDebts) {
-            final amt2 = double.tryParse(d['amount']?.toString() ?? '0') ?? 0.0;
-            double rem2 = amt2;
-            try {
-              if (d != null && d['remaining'] != null) {
-                rem2 = double.tryParse(d['remaining'].toString()) ?? rem2;
-              } else if (d != null && d['total_paid'] != null) {
-                rem2 = amt2 - (double.tryParse(d['total_paid'].toString()) ?? 0.0);
-              }
-            } catch (_) {}
-            if (rem2 > 0) unpaidCount++;
           }
 
           final bool isOpen = _expandedClients.contains(cid);
@@ -1709,92 +1865,226 @@ class _HomePageState extends State<HomePage> {
     final textColorSecondary = isDark ? Colors.white70 : Colors.black54;
 
     return Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.store, size: 24),
-          onPressed: () {},
-        ),
-        title: _isSearching
-            ? SizedBox(
-                height: 40,
-                child: TextField(
-                  focusNode: _searchFocus,
-                  controller: _searchController,
-                  style: TextStyle(color: textColor, fontSize: 14),
-                  decoration: InputDecoration(
-                    hintText: 'Rechercher...',
-                    hintStyle: TextStyle(color: textColorSecondary),
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.zero,
+      appBar: PreferredSize(
+        preferredSize: Size.fromHeight(_isSearching ? 130 : 60),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.orange.withOpacity(0.08),
+                Colors.orange.withOpacity(0.04),
+                const Color.fromARGB(255, 167, 139, 250).withOpacity(0.05),
+              ],
+            ),
+            border: Border(
+              bottom: BorderSide(
+                color: Colors.orange.withOpacity(0.1),
+                width: 0.5,
+              ),
+            ),
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Top action row
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Mode boutique OR Avatar utilisateur
+                      if (AppSettings().boutiqueModeEnabled)
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Icon(
+                            Icons.store,
+                            size: 18,
+                            color: Colors.orange,
+                          ),
+                        )
+                      else
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Icon(
+                            Icons.person,
+                            size: 18,
+                            color: Colors.orange,
+                          ),
+                        ),
+                      // Title avec accent
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 10),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (AppSettings().boutiqueModeEnabled)
+                              Text(
+                                AppSettings().boutiqueModeEnabled
+                                    ? (boutiqueName.isNotEmpty 
+                                        ? boutiqueName.toUpperCase()
+                                        : (widget.ownerShopName ?? 'Gestion de dettes').toUpperCase())
+                                    : ((AppSettings().firstName ?? '') + ' ' + (AppSettings().lastName ?? '')).isNotEmpty
+                                        ? ((AppSettings().firstName ?? '') + ' ' + (AppSettings().lastName ?? '')).toUpperCase()
+                                        : 'Utilisateur',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w400,
+                                  color: textColor,
+                                  letterSpacing: 0.3,
+                                  height: 1,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      // Actions
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: Icon(
+                              _isSearching ? Icons.close : Icons.search,
+                              size: 18,
+                              color: Colors.orange,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _isSearching = !_isSearching;
+                                if (!_isSearching) {
+                                  _searchController.clear();
+                                  _searchQuery = '';
+                                  fetchClients();
+                                  fetchDebts();
+                                } else {
+                                  Future.delayed(
+                                    const Duration(milliseconds: 80),
+                                    () => FocusScope.of(context).requestFocus(_searchFocus),
+                                  );
+                                }
+                              });
+                            },
+                            splashRadius: 20,
+                            padding: const EdgeInsets.all(6),
+                          ),
+                          IconButton(
+                            onPressed: _isSyncing ? null : () async => await _triggerSync(),
+                            icon: _isSyncing
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation(Colors.orange),
+                                    ),
+                                  )
+                                : Icon(
+                                    Icons.sync,
+                                    size: 18,
+                                    color: Colors.orange,
+                                  ),
+                            splashRadius: 20,
+                            padding: const EdgeInsets.all(6),
+                          ),
+                          PopupMenuButton<String>(
+                            onSelected: (v) async {
+                              if (v == 'logout') widget.onLogout();
+                              if (v == 'team') Navigator.of(context).push(MaterialPageRoute(builder: (_) => TeamScreen(ownerPhone: widget.ownerPhone)));
+                              if (v == 'settings') await Navigator.of(context).push(MaterialPageRoute(builder: (_) => SettingsScreen(debts: debts, clients: clients)));
+                              if (v == 'theme') AppSettings().setLightMode(!AppSettings().lightMode);
+                            },
+                            itemBuilder: (c) => [
+                              PopupMenuItem(
+                                value: 'theme',
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      AppSettings().lightMode ? Icons.dark_mode : Icons.light_mode,
+                                      size: 18,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(AppSettings().lightMode ? 'Mode sombre' : 'Mode clair'),
+                                  ],
+                                ),
+                              ),
+                              const PopupMenuItem(value: 'team', child: Text('Équipe')),
+                              const PopupMenuItem(value: 'settings', child: Text('Paramètres')),
+                              const PopupMenuItem(value: 'logout', child: Text('Déconnexion')),
+                            ],
+                            icon: Icon(
+                              Icons.more_vert,
+                              size: 18,
+                              color: Colors.orange,
+                            ),
+                            offset: const Offset(0, 40),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                  textInputAction: TextInputAction.search,
                 ),
-              )
-            : Text(
-                boutiqueName.isNotEmpty 
-                  ? boutiqueName 
-                  : (widget.ownerShopName ?? 'Gestion de dettes'),
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: textColor,
-                ),
-              ),
-        actions: [
-          IconButton(
-            icon: Icon(_isSearching ? Icons.close : Icons.search, size: 20),
-            onPressed: () {
-              setState(() {
-                _isSearching = !_isSearching;
-                if (!_isSearching) {
-                  _searchController.clear();
-                  _searchQuery = '';
-                  fetchClients();
-                  fetchDebts();
-                } else {
-                  Future.delayed(
-                    const Duration(milliseconds: 80),
-                    () => FocusScope.of(context).requestFocus(_searchFocus),
-                  );
-                }
-              });
-            },
-          ),
-          IconButton(
-            onPressed: _isSyncing ? null : () async => await _triggerSync(),
-            icon: _isSyncing
-                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.sync, size: 20),
-          ),
-          PopupMenuButton<String>(
-            onSelected: (v) async {
-              if (v == 'logout') widget.onLogout();
-              if (v == 'team') Navigator.of(context).push(MaterialPageRoute(builder: (_) => TeamScreen(ownerPhone: widget.ownerPhone)));
-              if (v == 'settings') await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
-              if (v == 'theme') AppSettings().setLightMode(!AppSettings().lightMode);
-            },
-            itemBuilder: (c) => [
-              PopupMenuItem(
-                value: 'theme',
-                child: Row(
-                  children: [
-                    Icon(
-                      AppSettings().lightMode ? Icons.dark_mode : Icons.light_mode,
-                      size: 18,
+                // Search bar si actif
+                if (_isSearching)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.08),
+                        border: Border.all(
+                          color: Colors.orange.withOpacity(0.2),
+                          width: 0.5,
+                        ),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      child: TextField(
+                        focusNode: _searchFocus,
+                        controller: _searchController,
+                        style: TextStyle(
+                          color: textColor,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'Rechercher un client...',
+                          hintStyle: TextStyle(
+                            color: textColorSecondary,
+                            fontSize: 12,
+                          ),
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 8,
+                            horizontal: 0,
+                          ),
+                          prefixIcon: Icon(
+                            Icons.search,
+                            size: 18,
+                            color: Colors.orange.withOpacity(0.6),
+                          ),
+                        ),
+                        textInputAction: TextInputAction.search,
+                      ),
                     ),
-                    const SizedBox(width: 8),
-                    Text(AppSettings().lightMode ? 'Mode sombre' : 'Mode clair'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(value: 'team', child: Text('Équipe')),
-              const PopupMenuItem(value: 'settings', child: Text('Paramètres')),
-              const PopupMenuItem(value: 'logout', child: Text('Déconnexion')),
-            ],
+                  ),
+              ],
+            ),
           ),
-        ],
+        ),
       ),
       body: _tabIndex == 0 ? _buildDebtsTab() : _buildClientsTab(),
       bottomNavigationBar: Builder(

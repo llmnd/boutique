@@ -4,9 +4,17 @@ import 'dart:convert';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'app_settings.dart';
+import 'stats_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+  final List? debts;
+  final List? clients;
+
+  const SettingsScreen({
+    super.key,
+    this.debts,
+    this.clients,
+  });
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -21,6 +29,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _shopNameCtl = TextEditingController();
   late TextEditingController _phoneCtl;
   bool _isSavingProfile = false;
+  bool _boutiqueModeEnabled = false;
 
   String get apiHost {
     if (kIsWeb) return 'http://localhost:3000/api';
@@ -39,6 +48,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _lastNameCtl.text = _settings.lastName ?? '';
     _shopNameCtl.text = _settings.shopName ?? '';
     _phoneCtl = TextEditingController(text: _settings.ownerPhone ?? '');
+    _boutiqueModeEnabled = _settings.boutiqueModeEnabled;
     _settings.addListener(_apply);
   }
 
@@ -177,6 +187,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // STATISTIQUES BUTTON
+              if (widget.debts != null && widget.clients != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 32),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        // Calculate total unpaid
+                        double totalUnpaid = 0;
+                        for (final d in widget.debts!) {
+                          final amt = double.tryParse(d['amount']?.toString() ?? '0') ?? 0.0;
+                          double rem = amt;
+                          try {
+                            if (d != null && d['remaining'] != null) {
+                              rem = double.tryParse(d['remaining'].toString()) ?? rem;
+                            } else if (d != null && d['total_paid'] != null) {
+                              rem = amt - (double.tryParse(d['total_paid'].toString()) ?? 0.0);
+                            }
+                          } catch (_) {}
+                          if (rem > 0) totalUnpaid += rem;
+                        }
+
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => StatsScreen(
+                              debts: widget.debts!,
+                              clients: widget.clients!,
+                              totalUnpaid: totalUnpaid,
+                            ),
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                      ),
+                      icon: const Icon(Icons.bar_chart_outlined, size: 20),
+                      label: Text(
+                        'VOIR LES STATISTIQUES',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1.5,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               // PROFIL SECTION
               Text(
                 'PROFIL',
@@ -251,27 +315,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                       const SizedBox(height: 16),
                       TextField(
-                        controller: _shopNameCtl,
-                        style: TextStyle(color: textColor, fontSize: 15),
-                        decoration: InputDecoration(
-                          labelText: 'Nom de la boutique',
-                          labelStyle: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w400,
-                            color: textColorSecondary,
-                          ),
-                          border: const OutlineInputBorder(borderSide: BorderSide(width: 0.5)),
-                          enabledBorder: OutlineInputBorder(
-                            borderSide: BorderSide(color: borderColor, width: 0.5),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderSide: BorderSide(color: textColor, width: 1),
-                          ),
-                          contentPadding: const EdgeInsets.all(16),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
                         controller: _phoneCtl,
                         readOnly: true,
                         style: TextStyle(color: textColorSecondary, fontSize: 15),
@@ -324,6 +367,128 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 ),
                         ),
                       ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 32),
+
+              // 💎 MODE BOUTIQUE SECTION
+              Text(
+                'MODE BOUTIQUE',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.5,
+                  color: textColorSecondary,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  border: Border.all(color: borderColor, width: 0.5),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Activez le mode boutique pour accéder à la gestion complète des clients et des statistiques. Laissez-le désactivé pour une gestion simple des dettes.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w400,
+                          color: textColorSecondary,
+                          height: 1.6,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'MODE BOUTIQUE',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 1,
+                              color: textColor,
+                            ),
+                          ),
+                          Switch(
+                            value: _boutiqueModeEnabled,
+                            onChanged: (val) async {
+                              setState(() => _boutiqueModeEnabled = val);
+                              await _settings.syncBoutiqueModeToServer(val);
+                              if (mounted) {
+                                _showMinimalSnackbar(
+                                  val ? 'Mode boutique activé' : 'Mode boutique désactivé',
+                                );
+                              }
+                            },
+                            activeColor: Colors.orange,
+                            inactiveThumbColor: textColorSecondary,
+                          ),
+                        ],
+                      ),
+                      if (_boutiqueModeEnabled) ...[
+                        const SizedBox(height: 20),
+                        TextField(
+                          controller: _shopNameCtl,
+                          style: TextStyle(color: textColor, fontSize: 15),
+                          decoration: InputDecoration(
+                            labelText: 'Nom de la boutique',
+                            labelStyle: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w400,
+                              color: textColorSecondary,
+                            ),
+                            border: const OutlineInputBorder(borderSide: BorderSide(width: 0.5)),
+                            enabledBorder: OutlineInputBorder(
+                              borderSide: BorderSide(color: borderColor, width: 0.5),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderSide: BorderSide(color: textColor, width: 1),
+                            ),
+                            contentPadding: const EdgeInsets.all(16),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 45,
+                          child: ElevatedButton(
+                            onPressed: _isSavingProfile ? null : () async {
+                              await _settings.setShopName(_shopNameCtl.text.trim());
+                              if (mounted) {
+                                _showMinimalSnackbar('Nom de boutique enregistré');
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.orange.withOpacity(0.1),
+                              foregroundColor: Colors.orange,
+                              disabledBackgroundColor: Colors.orange.withOpacity(0.05),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(6),
+                                side: BorderSide(color: Colors.orange.withOpacity(0.3), width: 0.5),
+                              ),
+                            ),
+                            child: Text(
+                              'ENREGISTRER LE NOM',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 1.2,
+                                color: Colors.orange,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),

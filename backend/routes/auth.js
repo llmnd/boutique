@@ -34,7 +34,7 @@ router.post('/register', async (req, res) => {
     const tokenExpiresAt = new Date(Date.now() + TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
     
     const result = await pool.query(
-      'INSERT INTO owners (phone, password, shop_name, first_name, last_name, security_question, security_answer_hash, auth_token, token_expires_at, token_created_at, device_id, last_login_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), $10, NOW()) RETURNING id, phone, shop_name, first_name, last_name, auth_token',
+      'INSERT INTO owners (phone, password, shop_name, first_name, last_name, security_question, security_answer_hash, auth_token, token_expires_at, token_created_at, device_id, last_login_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), $10, NOW()) RETURNING id, phone, shop_name, first_name, last_name, auth_token, boutique_mode_enabled',
       [phone, hashedPassword, shop_name, first_name, last_name, security_question || null, hashedAnswer, authToken, tokenExpiresAt, device_id || generateDeviceId()]
     );
     res.status(201).json(result.rows[0]);
@@ -50,7 +50,7 @@ router.post('/login', async (req, res) => {
   const { phone, password, device_id } = req.body;
   if (!phone || !password) return res.status(400).json({ error: 'phone and password required' });
   try {
-    const result = await pool.query('SELECT id, phone, password, shop_name, first_name, last_name FROM owners WHERE phone=$1', [phone]);
+    const result = await pool.query('SELECT id, phone, password, shop_name, first_name, last_name, boutique_mode_enabled FROM owners WHERE phone=$1', [phone]);
     if (result.rowCount === 0) return res.status(401).json({ error: 'Invalid credentials' });
     const owner = result.rows[0];
     
@@ -64,7 +64,7 @@ router.post('/login', async (req, res) => {
     
     // Update with new token
     const updateResult = await pool.query(
-      'UPDATE owners SET auth_token=$1, token_expires_at=$2, token_created_at=NOW(), device_id=$3, last_login_at=NOW() WHERE id=$4 RETURNING id, phone, shop_name, first_name, last_name, auth_token',
+      'UPDATE owners SET auth_token=$1, token_expires_at=$2, token_created_at=NOW(), device_id=$3, last_login_at=NOW() WHERE id=$4 RETURNING id, phone, shop_name, first_name, last_name, auth_token, boutique_mode_enabled',
       [authToken, tokenExpiresAt, device_id || generateDeviceId(), owner.id]
     );
     
@@ -82,7 +82,7 @@ router.post('/verify-token', async (req, res) => {
   
   try {
     const result = await pool.query(
-      'SELECT id, phone, shop_name, first_name, last_name, auth_token, token_expires_at FROM owners WHERE auth_token=$1',
+      'SELECT id, phone, shop_name, first_name, last_name, auth_token, token_expires_at, boutique_mode_enabled FROM owners WHERE auth_token=$1',
       [auth_token]
     );
     
@@ -107,7 +107,8 @@ router.post('/verify-token', async (req, res) => {
       shop_name: owner.shop_name,
       first_name: owner.first_name,
       last_name: owner.last_name,
-      auth_token: owner.auth_token
+      auth_token: owner.auth_token,
+      boutique_mode_enabled: owner.boutique_mode_enabled
     });
   } catch (err) {
     console.error(err);
@@ -226,6 +227,34 @@ router.post('/reset-password', async (req, res) => {
     );
     
     res.json({ success: true, message: 'Password reset successfully', user: updateResult.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+// Update boutique mode setting
+router.post('/update-boutique-mode', async (req, res) => {
+  const { auth_token, boutique_mode_enabled } = req.body;
+  
+  if (!auth_token || boutique_mode_enabled === undefined) {
+    return res.status(400).json({ error: 'auth_token and boutique_mode_enabled required' });
+  }
+  
+  try {
+    // Verify token first
+    const ownerResult = await pool.query('SELECT id FROM owners WHERE auth_token=$1', [auth_token]);
+    if (ownerResult.rowCount === 0) return res.status(401).json({ error: 'Invalid token' });
+    
+    const ownerId = ownerResult.rows[0].id;
+    
+    // Update boutique mode
+    const updateResult = await pool.query(
+      'UPDATE owners SET boutique_mode_enabled=$1, updated_at=NOW() WHERE id=$2 RETURNING id, phone, shop_name, first_name, last_name, auth_token, boutique_mode_enabled',
+      [boutique_mode_enabled, ownerId]
+    );
+    
+    res.json(updateResult.rows[0]);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'DB error' });

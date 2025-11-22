@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
+import 'package:http/http.dart' as http;
+import 'dart:io' show Platform;
 
 class AppSettings extends ChangeNotifier {
   static final AppSettings _instance = AppSettings._internal();
@@ -20,6 +22,7 @@ class AppSettings extends ChangeNotifier {
   String? _firstName;
   String? _lastName;
   String? _shopName;
+  bool _boutiqueModeEnabled = false;
   
   // Authentication token
   String? _authToken;
@@ -34,6 +37,7 @@ class AppSettings extends ChangeNotifier {
   String? get ownerPhone => _ownerPhone;
   String? get authToken => _authToken;
   String? get deviceId => _deviceId;
+  bool get boutiqueModeEnabled => _boutiqueModeEnabled;
 
   Future<void> initForOwner(String ownerPhone) async {
     _ownerPhone = ownerPhone;
@@ -46,6 +50,7 @@ class AppSettings extends ChangeNotifier {
     final fn = prefs.getString('first_name_$ownerPhone');
     final ln = prefs.getString('last_name_$ownerPhone');
     final sn = prefs.getString('shop_name_$ownerPhone');
+    final bm = prefs.getBool('boutique_mode_$ownerPhone');
     final at = prefs.getString('auth_token_$ownerPhone');
     final di = prefs.getString('device_id_$ownerPhone');
     
@@ -62,6 +67,7 @@ class AppSettings extends ChangeNotifier {
     if (fn != null) _firstName = fn;
     if (ln != null) _lastName = ln;
     if (sn != null) _shopName = sn;
+    if (bm != null) _boutiqueModeEnabled = bm;
     if (at != null) _authToken = at;
     if (di != null) _deviceId = di;
     notifyListeners();
@@ -126,6 +132,13 @@ class AppSettings extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> setBoutiqueModeEnabled(bool enabled) async {
+    _boutiqueModeEnabled = enabled;
+    final prefs = await SharedPreferences.getInstance();
+    if (_ownerPhone != null) await prefs.setBool('boutique_mode_$_ownerPhone', enabled);
+    notifyListeners();
+  }
+
   Future<void> setProfileInfo(String firstName, String lastName, String shopName) async {
     _firstName = firstName;
     _lastName = lastName;
@@ -159,6 +172,41 @@ class AppSettings extends ChangeNotifier {
       await prefs.remove('device_id_$_ownerPhone');
     }
     notifyListeners();
+  }
+
+  String get apiHost {
+    if (kIsWeb) return 'http://localhost:3000/api';
+    try {
+      if (Platform.isAndroid) return 'http://10.0.2.2:3000/api';
+    } catch (_) {}
+    return 'http://localhost:3000/api';
+  }
+
+  Future<void> syncBoutiqueModeToServer(bool enabled) async {
+    if (_authToken == null || _authToken!.isEmpty) {
+      // No token, just update locally
+      await setBoutiqueModeEnabled(enabled);
+      return;
+    }
+
+    try {
+      final res = await http.post(
+        Uri.parse('$apiHost/auth/update-boutique-mode'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'auth_token': _authToken,
+          'boutique_mode_enabled': enabled,
+        }),
+      ).timeout(const Duration(seconds: 8));
+
+      if (res.statusCode == 200) {
+        // Update locally
+        await setBoutiqueModeEnabled(enabled);
+      }
+    } catch (e) {
+      // Fallback: update locally if server fails
+      await setBoutiqueModeEnabled(enabled);
+    }
   }
 
   double convertFromXof(num amount) {
