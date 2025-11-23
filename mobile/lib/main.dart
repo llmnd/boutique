@@ -182,6 +182,7 @@ class _HomePageState extends State<HomePage> {
   int _tabIndex = 0;
   List debts = [];
   List clients = [];
+  String? _focusedTotalCard;
   String _searchQuery = '';
   bool _isSearching = false;
   bool _showTotalCard = true;
@@ -210,6 +211,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    _focusedTotalCard = null;
     _loadBoutique();
     fetchClients();
     fetchDebts();
@@ -703,61 +705,110 @@ class _HomePageState extends State<HomePage> {
         if (widget.ownerPhone.isNotEmpty) 'x-owner': widget.ownerPhone
       };
       final res = await http.get(
-        // demander les soldes consolidés côté serveur pour réduire les appels
-        Uri.parse('$apiHost/debts?consolidated=1'),
+        Uri.parse('$apiHost/debts'),
         headers: headers,
       ).timeout(const Duration(seconds: 8));
-
+      
       if (res.statusCode == 200) {
-        final raw = json.decode(res.body);
-        final list = raw is List ? raw : (raw is Map ? [raw] : []);
+        final list = json.decode(res.body) as List;
+        
+        // GROUPER PAR CLIENT+TYPE : garder uniquement la dette la plus récente
+        // Clé composite pour séparer PRÊTS et EMPRUNTS : "{clientId}|{type}"
+        final Map<String, Map<String, dynamic>> debtsByKey = {};
 
-        // Normaliser la réponse consolidée (backend renvoie client_id, type, remaining, total_debt, debt_ids, last_debt_id...)
-        final List<Map<String, dynamic>> normalized = [];
-        for (final item in list) {
-          if (item == null) continue;
-          // Si c'est un objet agrégé (consolidated) on s'adapte
-          if (item is Map && item.containsKey('client_id') && item.containsKey('type')) {
-            final clientId = item['client_id'];
-            final type = (item['type'] ?? 'debt').toString();
-            final remaining = (item['remaining'] as num?)?.toDouble() ?? ((item['remaining'] is String) ? double.tryParse(item['remaining'].toString()) ?? 0.0 : 0.0);
-            final amount = (item['total_debt'] as num?)?.toDouble() ?? (item['total_base_amount'] as num?)?.toDouble() ?? 0.0;
-            final lastId = item['last_debt_id'] ?? (item['debt_ids'] is List && item['debt_ids'].isNotEmpty ? item['debt_ids'][0] : null);
-
-            normalized.add({
-              'id': lastId,
-              'client_id': clientId,
-              'type': type,
-              'amount': amount,
-              'remaining': remaining,
-              'total_additions': item['total_additions'],
-              'total_paid': item['total_payments'] ?? item['total_payments'],
-              'debt_ids': item['debt_ids'],
-              '_ts': (lastId is int) ? lastId.toDouble() : (lastId is String ? double.tryParse(lastId) ?? 0.0 : 0.0),
-            });
-          } else if (item is Map) {
-            // ancien format : chaque ligne est une dette
-            final id = item['id'];
-            normalized.add({
-              ...item,
-              'id': id,
-              'client_id': item['client_id'],
-              'type': item['type'] ?? 'debt',
-              'amount': item['amount'],
-              'remaining': (item['remaining'] as num?)?.toDouble() ?? 0.0,
-              '_ts': _tsForDebt(item),
-            });
+        double _tsForDebt(dynamic debt) {
+          if (debt == null) return 0.0;
+          // Priorité aux champs de timestamp usuels
+          final List<String> tsFields = ['updated_at', 'added_at', 'created_at', 'createdAt', 'date'];
+          for (final f in tsFields) {
+            final v = debt[f];
+            if (v == null) continue;
+            if (v is String) {
+              final dt = DateTime.tryParse(v);
+              if (dt != null) return dt.millisecondsSinceEpoch.toDouble();
+            } else if (v is int) {
+              return v.toDouble();
+            }
           }
+
+          // Fallback : utiliser l'id si disponible (ids croissants -> id plus élevé = plus récent)
+          final idv = debt['id'];
+          if (idv is int) return idv.toDouble();
+          if (idv is String) return double.tryParse(idv) ?? 0.0;
+          return 0.0;
         }
 
+        for (final debt in list) {
+          if (debt == null) continue;
+
+          final clientId = debt['client_id'];
+          if (clientId == null) continue;
+
+          final type = (debt['type'] ?? 'debt').toString();
+          final compKey = '${clientId.toString()}|$type';
+          final remaining = (debt['remaining'] as num?)?.toDouble() ?? 0.0;
+          final ts = _tsForDebt(debt);
+
+          if (debtsByKey.containsKey(compKey)) {
+            final existing = debtsByKey[compKey]!;
+            final existingTs = (existing['_ts'] as double?) ?? 0.0;
+            // Remplacer si cette dette est plus récente
+            if (ts >= existingTs) {
+              debtsByKey[compKey] = {
+                ...debt,
+                'remaining': remaining,
+                '_ts': ts,
+              };
+            } else {
+              // garder l'existante (plus récente)
+            }
+          } else {
+            debtsByKey[compKey] = {
+              ...debt,
+              'remaining': remaining,
+              '_ts': ts,
+            };
+          }
+        }
+        
+        // Convertir en liste (chaque entrée correspond à client+type)
+        List<Map<String, dynamic>> consolidatedDebts = debtsByKey.values.toList();
+        
         // Filtrer par recherche si nécessaire
-        var consolidatedDebts = normalized;
         if (query != null && query.isNotEmpty) {
           consolidatedDebts = consolidatedDebts.where((d) {
             final clientName = _clientNameForDebt(d)?.toLowerCase() ?? '';
             return clientName.contains(query.toLowerCase());
           }).toList();
         }
+
+        // Pour garantir la cohérence avec `DebtDetailsPage`, récupérer les paiements
+        // pour chaque dette consolidée et recalculer `remaining` = amount - sum(payments).
+        try {
+          final List<Future<void>> jobs = [];
+          for (final debt in consolidatedDebts) {
+            jobs.add(() async {
+              try {
+                final id = debt['id'];
+                if (id == null) return;
+                final resp = await http.get(
+                  Uri.parse('$apiHost/debts/$id/payments'),
+                  headers: headers,
+                ).timeout(const Duration(seconds: 8));
+                if (resp.statusCode == 200) {
+                  final paymentsList = json.decode(resp.body) as List;
+                  // Recalculer remaining à l'identique de DebtDetailsPage
+                  final newRem = _calculateRemainingFromPayments(debt, paymentsList);
+                  debt['remaining'] = newRem;
+                  debt['_payments'] = paymentsList; // debug/diagnostic
+                }
+              } catch (_) {
+                // ignore payment fetch errors - on garde le remaining fourni par l'API
+              }
+            }());
+          }
+          await Future.wait(jobs);
+        } catch (_) {}
 
         setState(() => debts = consolidatedDebts);
       }
@@ -1206,7 +1257,7 @@ class _HomePageState extends State<HomePage> {
       grouped[key]!.add(d);
     }
 
-    final groups = grouped.entries.toList();
+    List<MapEntry<String, List>> groups = grouped.entries.toList();
     groups.sort((a, b) {
       double sumRem(List list) {
         double tot = 0.0;
@@ -1224,6 +1275,14 @@ class _HomePageState extends State<HomePage> {
       if (sa != sb) return sa - sb;
       return 0;
     });
+
+    // Séparer les groupes récents en PRÊTS puis EMPRUNTS pour que
+    // les clients récents apparaissent dans la section correspondante.
+    final prets = groups.where((e) => e.key.toString().endsWith('|debt')).toList();
+    final emprunts = groups.where((e) => e.key.toString().endsWith('|loan')).toList();
+    final others = groups.where((e) => !e.key.toString().endsWith('|debt') && !e.key.toString().endsWith('|loan')).toList();
+
+    groups = [...prets, ...emprunts, ...others];
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black;
@@ -1252,8 +1311,30 @@ class _HomePageState extends State<HomePage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        // Show "À PERCEVOIR" or "À REMBOURSER" based on net balance
+                        // Affiche soit le solde net, soit le total sélectionné (PRÊTS/EMPRUNTS)
                         Builder(builder: (_) {
+                          if (_focusedTotalCard == 'prets') {
+                            return Text(
+                              'PRÊTS',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 1.5,
+                                color: textColorSecondary,
+                              ),
+                            );
+                          }
+                          if (_focusedTotalCard == 'emprunts') {
+                            return Text(
+                              'EMPRUNTS',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 1.5,
+                                color: textColorSecondary,
+                              ),
+                            );
+                          }
                           final bool oweMoney = netBalance < 0;
                           return Text(
                             oweMoney ? 'À REMBOURSER' : 'À PERCEVOIR',
@@ -1280,14 +1361,22 @@ class _HomePageState extends State<HomePage> {
                             const SizedBox(width: 8),
                             _showTotalCard
                                 ? Builder(builder: (_) {
-                                    final bool oweMoney = netBalance < 0;
-                                    final display = oweMoney
-                                        ? AppSettings().formatCurrency(netBalance.abs())
-                                        : AppSettings().formatCurrency(netBalance);
-                                    final Color amtColor = oweMoney
-                                        ? const Color.fromARGB(231, 141, 47, 219)
-                                        : textColor;
+                                    double displayValue = 0.0;
+                                    Color amtColor = textColor;
 
+                                    if (_focusedTotalCard == 'prets') {
+                                      displayValue = totalPrets;
+                                      amtColor = Colors.orange;
+                                    } else if (_focusedTotalCard == 'emprunts') {
+                                      displayValue = totalEmprunts;
+                                      amtColor = Colors.purple;
+                                    } else {
+                                      final bool oweMoney = netBalance < 0;
+                                      displayValue = oweMoney ? netBalance.abs() : netBalance;
+                                      amtColor = oweMoney ? const Color.fromARGB(231, 141, 47, 219) : textColor;
+                                    }
+
+                                    final display = AppSettings().formatCurrency(displayValue);
                                     return Text(
                                       display,
                                       style: TextStyle(
@@ -1312,121 +1401,127 @@ class _HomePageState extends State<HomePage> {
                         Row(
                           children: [
                             Expanded(
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                    colors: [
-                                      Colors.orange.withOpacity(0.08),
-                                      Colors.orange.withOpacity(0.03),
-                                    ],
-                                  ),
-                                  border: Border.all(
-                                    color: Colors.orange.withOpacity(0.2),
-                                    width: 0.5,
-                                  ),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        Icon(Icons.trending_up, size: 14, color: Colors.orange),
-                                        const SizedBox(width: 6),
-                                        Text(
-                                          'PRÊTS',
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w600,
-                                            color: Colors.orange,
-                                            letterSpacing: 1,
-                                          ),
-                                        ),
+                              child: GestureDetector(
+                                onTap: () => setState(() => _focusedTotalCard = _focusedTotalCard == 'prets' ? null : 'prets'),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [
+                                        Colors.orange.withOpacity(0.08),
+                                        Colors.orange.withOpacity(0.03),
                                       ],
                                     ),
-                                    const SizedBox(height: 4),
-                                    _showTotalCard
-                                        ? Text(
-                                            AppSettings().formatCurrency(totalPrets),
-                                            style: const TextStyle(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w700,
-                                              color: Colors.orange,
-                                            ),
-                                          )
-                                        : Text(
-                                            '•••••',
+                                    border: Border.all(
+                                      color: Colors.orange.withOpacity(0.2),
+                                      width: 0.5,
+                                    ),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.center,
+                                    children: [
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(Icons.trending_up, size: 14, color: Colors.orange),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            'PRÊTS',
                                             style: TextStyle(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w400,
-                                              color: textColorSecondary,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.orange,
+                                              letterSpacing: 1,
                                             ),
                                           ),
-                                  ],
+                                        ],
+                                      ),
+                                      const SizedBox(height: 4),
+                                      _showTotalCard
+                                          ? Text(
+                                              AppSettings().formatCurrency(totalPrets),
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w700,
+                                                color: Colors.orange,
+                                              ),
+                                            )
+                                          : Text(
+                                              '•••••',
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w400,
+                                                color: textColorSecondary,
+                                              ),
+                                            ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                    colors: [
-                                      Colors.purple.withOpacity(0.08),
-                                      Colors.purple.withOpacity(0.03),
-                                    ],
-                                  ),
-                                  border: Border.all(
-                                    color: Colors.purple.withOpacity(0.2),
-                                    width: 0.5,
-                                  ),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        Icon(Icons.trending_down, size: 14, color: Colors.purple),
-                                        const SizedBox(width: 6),
-                                        Text(
-                                          'EMPRUNTS',
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w600,
-                                            color: Colors.purple,
-                                            letterSpacing: 1,
-                                          ),
-                                        ),
+                              child: GestureDetector(
+                                onTap: () => setState(() => _focusedTotalCard = _focusedTotalCard == 'emprunts' ? null : 'emprunts'),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [
+                                        Colors.purple.withOpacity(0.08),
+                                        Colors.purple.withOpacity(0.03),
                                       ],
                                     ),
-                                    const SizedBox(height: 4),
-                                    _showTotalCard
-                                        ? Text(
-                                            AppSettings().formatCurrency(totalEmprunts),
-                                            style: const TextStyle(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w700,
-                                              color: Colors.purple,
-                                            ),
-                                          )
-                                        : Text(
-                                            '•••••',
+                                    border: Border.all(
+                                      color: Colors.purple.withOpacity(0.2),
+                                      width: 0.5,
+                                    ),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.center,
+                                    children: [
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(Icons.trending_down, size: 14, color: Colors.purple),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            'EMPRUNTS',
                                             style: TextStyle(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w400,
-                                              color: textColorSecondary,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.purple,
+                                              letterSpacing: 1,
                                             ),
                                           ),
-                                  ],
+                                        ],
+                                      ),
+                                      const SizedBox(height: 4),
+                                      _showTotalCard
+                                          ? Text(
+                                              AppSettings().formatCurrency(totalEmprunts),
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w700,
+                                                color: Colors.purple,
+                                              ),
+                                            )
+                                          : Text(
+                                              '•••••',
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w400,
+                                                color: textColorSecondary,
+                                              ),
+                                            ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),

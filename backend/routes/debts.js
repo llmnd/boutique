@@ -32,49 +32,6 @@ async function calculateDebtBalance(debtId) {
 router.get('/', async (req, res) => {
   try {
     const owner = req.headers['x-owner'] || req.headers['X-Owner'] || process.env.BOUTIQUE_OWNER || 'owner';
-    const consolidated = req.query.consolidated || req.query.consolidate || req.query.c;
-    // If caller requests consolidated balances per client+type, return aggregated results
-    if (consolidated && (consolidated === '1' || consolidated === 'true' || consolidated === 'yes')) {
-      try {
-        const sql = `
-          SELECT d.client_id, d.type,
-                 COALESCE(SUM(d.amount::numeric),0) as total_base_amount,
-                 COALESCE(SUM(coalesce(a.total_additions,0)),0) as total_additions,
-                 COALESCE(SUM(coalesce(p.total_payments,0)),0) as total_payments,
-                 (COALESCE(SUM(d.amount::numeric),0) + COALESCE(SUM(coalesce(a.total_additions,0)),0)) as total_debt,
-                 ((COALESCE(SUM(d.amount::numeric),0) + COALESCE(SUM(coalesce(a.total_additions,0)),0)) - COALESCE(SUM(coalesce(p.total_payments,0)),0)) as remaining,
-                 array_agg(d.id ORDER BY d.id DESC) as debt_ids,
-                 MAX(d.id) as last_debt_id
-          FROM debts d
-          LEFT JOIN (
-            SELECT debt_id, SUM(amount::numeric) as total_additions FROM debt_additions GROUP BY debt_id
-          ) a ON a.debt_id = d.id
-          LEFT JOIN (
-            SELECT debt_id, SUM(amount::numeric) as total_payments FROM payments GROUP BY debt_id
-          ) p ON p.debt_id = d.id
-          WHERE d.creditor = $1
-          GROUP BY d.client_id, d.type
-          ORDER BY MAX(d.id) DESC
-        `;
-
-        const aggRes = await pool.query(sql, [owner]);
-        const out = aggRes.rows.map(r => ({
-          client_id: r.client_id,
-          type: r.type,
-          total_base_amount: parseFloat(r.total_base_amount),
-          total_additions: parseFloat(r.total_additions),
-          total_payments: parseFloat(r.total_payments),
-          total_debt: parseFloat(r.total_debt),
-          remaining: Math.max(parseFloat(r.remaining), 0),
-          debt_ids: r.debt_ids,
-          last_debt_id: r.last_debt_id
-        }));
-        return res.json(out);
-      } catch (e) {
-        console.error('Error consolidating debts:', e);
-        return res.status(500).json({ error: 'DB error during consolidation' });
-      }
-    }
     // ✅ CORRIGÉ: Récupérer TOUS les débts/emprunts du propriétaire (creditor)
     // - Les PRÊTS ont type='debt' : j'ai prêté de l'argent à client_id
     // - Les EMPRUNTS ont type='loan' : j'ai emprunté de l'argent à client_id

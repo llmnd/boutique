@@ -690,6 +690,17 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> with TickerProviderSt
   List<Map<String, dynamic>> _getMergedHistory() {
     final merged = <Map<String, dynamic>>[];
     
+    // Ajouter la création initiale de la dette/emprunt dans l'historique
+    try {
+      final creationDate = _parseDate(_debt['created_at'] ?? _debt['added_at'] ?? _debt['date'] ?? _debt['createdAt']);
+      merged.add({
+        'type': 'creation',
+        'data': _debt,
+        'date': creationDate ?? DateTime.now(),
+        'amount': _debt['amount'],
+      });
+    } catch (_) {}
+
     // Ajouter les paiements
     for (final p in payments) {
       merged.add({
@@ -740,9 +751,36 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> with TickerProviderSt
 
   // ✅ NOUVELLE FONCTION : Widget pour un item d'historique
   Widget _buildHistoryItem(Map<String, dynamic> item, Color textColor, Color textColorSecondary) {
-    final isPayment = item['type'] == 'payment';
-    final data = item['data'] as Map;
+    final type = item['type'] as String? ?? '';
+    final data = item['data'] as Map? ?? <String, dynamic>{};
     final amount = _parseDouble(item['amount']);
+
+    final isPayment = type == 'payment';
+    final isAddition = type == 'addition';
+    final isCreation = type == 'creation';
+
+    IconData leadingIcon;
+    Color leadingColor;
+    String titleText;
+
+    if (isCreation) {
+      leadingIcon = Icons.event_note;
+      leadingColor = Colors.blue;
+      titleText = _isLoan() ? 'Emprunt initial' : 'Prêt initial';
+    } else if (isPayment) {
+      leadingIcon = Icons.arrow_downward;
+      leadingColor = Theme.of(context).colorScheme.primary;
+      titleText = _isLoan() ? 'Remboursement effectué' : 'Paiement reçu';
+    } else {
+      // addition
+      leadingIcon = Icons.arrow_upward;
+      leadingColor = Colors.orange;
+      titleText = _isLoan() ? 'Montant emprunté' : 'Montant prêté';
+    }
+
+    final subtitleDate = isPayment
+        ? _formatPaymentDate(data['paid_at'])
+        : _fmtDate(data['created_at'] ?? data['added_at'] ?? data['date'] ?? data['createdAt']);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -755,15 +793,11 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> with TickerProviderSt
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: isPayment 
-                ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
-                : Colors.orange.withOpacity(0.1),
+            color: leadingColor.withOpacity(0.1),
           ),
           child: Icon(
-            isPayment ? Icons.arrow_downward : Icons.arrow_upward,
-            color: isPayment 
-                ? Theme.of(context).colorScheme.primary
-                : Colors.orange,
+            leadingIcon,
+            color: leadingColor,
             size: 20,
           ),
         ),
@@ -773,9 +807,7 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> with TickerProviderSt
             Row(
               children: [
                 Text(
-                  isPayment 
-                    ? (_isLoan() ? 'Remboursement effectué' : 'Paiement reçu')
-                    : (_isLoan() ? 'Montant emprunté' : 'Montant prêté'),
+                  titleText,
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -791,9 +823,7 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> with TickerProviderSt
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
-                color: isPayment 
-                    ? Theme.of(context).colorScheme.primary
-                    : Colors.orange,
+                color: (isPayment) ? Theme.of(context).colorScheme.primary : Colors.orange,
               ),
             ),
             if (data['notes'] != null && data['notes'].toString().isNotEmpty) ...[
@@ -814,9 +844,7 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> with TickerProviderSt
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 8),
           child: Text(
-            isPayment
-                ? _formatPaymentDate(data['paid_at'])
-                : _fmtDate(data['added_at']),
+            subtitleDate,
             style: TextStyle(
               fontSize: 12,
               color: textColorSecondary,
