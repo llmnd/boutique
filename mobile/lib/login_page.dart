@@ -54,17 +54,32 @@ class _LoginPageState extends State<LoginPage> {
   Future _doLogin() async {
     setState(() => loading = true);
     try {
+      // Check if user has a stored token (device is already registered)
+      final offlineService = PinAuthOfflineService();
+      final storedToken = await offlineService.getToken();
+      final storedUserId = await offlineService.getUserId();
+      
+      if (storedToken == null || storedUserId == null) {
+        setState(() => loading = false);
+        await _showMinimalDialog('Erreur', 'Aucun compte trouvé sur cet appareil. Veuillez vous inscrire d\'abord.');
+        return;
+      }
+      
+      // Use stored token to identify user and verify PIN
       final body = {'pin': pin};
       final res = await http.post(
           Uri.parse('$apiHost/auth/login-pin'),
-          headers: {'Content-Type': 'application/json'},
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $storedToken',
+          },
           body: json.encode(body)).timeout(const Duration(seconds: 8));
       
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
         final id = data['id'] is int ? data['id'] as int : (data['id'] is String ? int.tryParse(data['id']) : null);
         
-        // Save auth token
+        // Update auth token and settings
         if (data['auth_token'] != null) {
           final settings = AppSettings();
           await settings.initForOwner(data['phone']);
@@ -74,8 +89,8 @@ class _LoginPageState extends State<LoginPage> {
           }
         }
         
-        // Cache offline
-        await PinAuthOfflineService().cacheCredentials(
+        // Update cached token
+        await offlineService.cacheCredentials(
           pin: pin,
           token: data['auth_token'],
           phone: data['phone'],
@@ -86,15 +101,16 @@ class _LoginPageState extends State<LoginPage> {
         );
         
         widget.onLogin(data['phone'], data['shop_name'], id, data['first_name'], data['last_name'], data['boutique_mode_enabled'] as bool?);
+      } else if (res.statusCode == 401) {
+        setState(() => loading = false);
+        await _showMinimalDialog('Erreur', 'PIN incorrect');
       } else {
-        setState(() => pin = '');
-        await _showMinimalDialog('Erreur', 'PIN incorrect. Réessayez.');
+        setState(() => loading = false);
+        await _showMinimalDialog('Erreur', 'Connexion échouée: ${res.statusCode}');
       }
     } catch (e) {
-      setState(() => pin = '');
-      await _showMinimalDialog('Erreur', 'Erreur connexion: $e');
-    } finally {
       setState(() => loading = false);
+      await _showMinimalDialog('Erreur', 'Erreur connexion: $e');
     }
   }
 

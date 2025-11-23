@@ -38,10 +38,8 @@ router.post('/register-pin', async (req, res) => {
       return res.status(409).json({ error: 'Phone number already registered' });
     }
     
-    const existingPin = await pool.query('SELECT id FROM owners WHERE pin=$1', [pin]);
-    if (existingPin.rowCount > 0) {
-      return res.status(409).json({ error: 'PIN already in use' });
-    }
+    // Hash PIN for security
+    const hashedPin = await bcrypt.hash(pin, SALT_ROUNDS);
     
     // Generate token
     const authToken = generateToken();
@@ -49,7 +47,7 @@ router.post('/register-pin', async (req, res) => {
     
     const result = await pool.query(
       'INSERT INTO owners (phone, pin, shop_name, first_name, last_name, auth_token, token_expires_at, token_created_at, device_id, last_login_at) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, NOW()) RETURNING id, phone, shop_name, first_name, last_name, auth_token, boutique_mode_enabled',
-      [phone, pin, shop_name || null, first_name || '', last_name || '', authToken, tokenExpiresAt, device_id || generateDeviceId()]
+      [phone, hashedPin, shop_name || null, first_name || '', last_name || '', authToken, tokenExpiresAt, device_id || generateDeviceId()]
     );
     
     res.status(201).json(result.rows[0]);
@@ -305,23 +303,50 @@ router.post('/update-boutique-mode', async (req, res) => {
 // PIN-based login (simple 4-digit PIN)
 router.post('/login-pin', async (req, res) => {
   const { pin } = req.body;
+  const authHeader = req.headers.authorization;
+  
+  console.log('Login attempt - PIN:', pin ? '****' : 'missing', 'Auth header:', authHeader ? 'present' : 'missing');
+  
+  if (!pin) {
+    return res.status(400).json({ error: 'pin required' });
+  }
   
   if (!pin || pin.length !== 4 || !/^\d+$/.test(pin)) {
     return res.status(400).json({ error: 'PIN must be exactly 4 digits' });
   }
   
   try {
-    // Find owner by PIN
-    const result = await pool.query(
-      'SELECT id, phone, shop_name, first_name, last_name, boutique_mode_enabled FROM owners WHERE pin=$1',
-      [pin]
-    );
+    let owner = null;
     
-    if (result.rowCount === 0) {
-      return res.status(401).json({ error: 'Invalid PIN' });
+    // If Bearer token provided, use it to identify the user
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      console.log('Token found, searching for user with this token...');
+      const result = await pool.query(
+        'SELECT id, phone, pin, shop_name, first_name, last_name, boutique_mode_enabled FROM owners WHERE auth_token=$1',
+        [token]
+      );
+      
+      console.log('Token search result:', result.rowCount, 'row(s) found');
+      
+      if (result.rowCount === 0) {
+        return res.status(401).json({ error: 'Invalid token' });
+      }
+      
+      owner = result.rows[0];
+    } else {
+      // No token provided - error
+      console.log('No authorization header provided');
+      return res.status(401).json({ error: 'Device token required - please sign up first' });
     }
     
-    const owner = result.rows[0];
+    // Verify PIN against this owner's PIN
+    const pinMatch = await bcrypt.compare(pin, owner.pin);
+    console.log('PIN match result:', pinMatch);
+    
+    if (!pinMatch) {
+      return res.status(401).json({ error: 'Invalid PIN' });
+    }
     
     // Generate new token
     const authToken = generateToken();
@@ -333,9 +358,10 @@ router.post('/login-pin', async (req, res) => {
       [authToken, tokenExpiresAt, owner.id]
     );
     
+    console.log('Login successful for owner:', owner.phone);
     res.json(updateResult.rows[0]);
   } catch (err) {
-    console.error(err);
+    console.error('Login error:', err);
     res.status(500).json({ error: 'DB error' });
   }
 });
@@ -369,10 +395,13 @@ router.post('/set-pin', async (req, res) => {
       return res.status(409).json({ error: 'PIN already in use' });
     }
     
+    // Hash PIN for security
+    const hashedPin = await bcrypt.hash(pin, SALT_ROUNDS);
+    
     // Update PIN
     const updateResult = await pool.query(
       'UPDATE owners SET pin=$1, updated_at=NOW() WHERE id=$2 RETURNING id, phone, shop_name, first_name, last_name, pin',
-      [pin, ownerId]
+      [hashedPin, ownerId]
     );
     
     res.json({ success: true, message: 'PIN set successfully', user: updateResult.rows[0] });

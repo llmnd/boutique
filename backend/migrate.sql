@@ -19,8 +19,17 @@ END$$;
 CREATE TABLE IF NOT EXISTS owners (
   id SERIAL PRIMARY KEY,
   phone TEXT UNIQUE NOT NULL,
-  password TEXT NOT NULL,
+  password TEXT,
+  pin VARCHAR(255),
   shop_name TEXT,
+  first_name TEXT,
+  last_name TEXT,
+  auth_token TEXT,
+  token_expires_at TIMESTAMP,
+  token_created_at TIMESTAMP,
+  device_id TEXT,
+  last_login_at TIMESTAMP,
+  boutique_mode_enabled BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -81,3 +90,12 @@ CREATE TABLE IF NOT EXISTS activity_log (
   details JSONB,
   created_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Expand PIN column to store hashed PINs (bcrypt produces ~60 char hashes)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='owners' AND column_name='pin' AND data_type='character varying') THEN
+    -- Check current length
+    ALTER TABLE owners ALTER COLUMN pin TYPE VARCHAR(255);
+  END IF;
+END$$;

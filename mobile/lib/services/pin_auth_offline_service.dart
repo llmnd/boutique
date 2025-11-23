@@ -157,4 +157,38 @@ class PinAuthOfflineService {
       return false;
     }
   }
+
+  /// Récupère le token stocké
+  Future<String?> getToken() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_KEY_TOKEN);
+    } catch (e) {
+      print('❌ Error getting token: $e');
+      return null;
+    }
+  }
+
+  /// Récupère l'ID utilisateur stocké
+  Future<int?> getUserId() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getInt(_KEY_USER_ID);
+      return userId;
+    } catch (e) {
+      print('❌ Error getting user ID: $e');
+      return null;
+    }
+  }
+
+  /// Récupère le téléphone stocké
+  Future<String?> getPhone() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_KEY_PHONE);
+    } catch (e) {
+      print('❌ Error getting phone: $e');
+      return null;
+    }
+  }
 }

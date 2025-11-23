@@ -1082,20 +1082,121 @@ double _clientTotalRemaining(dynamic clientId) {
     if (clients.isEmpty) {
       final add = await showDialog<bool>(
         context: context,
-        builder: (c) => AlertDialog(
-          title: Text('Aucun ${_getTermClient()}'),
-          content: Text('Aucun ${_getTermClient()} trouvé. Voulez-vous en ajouter un maintenant ?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(c).pop(false),
-              child: const Text('Annuler'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(c).pop(true),
-              child: Text('Ajouter ${_getTermClient()}'),
-            ),
-          ],
+        builder: (c) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  final bgColor = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+  final textColor = isDark ? Colors.white : Colors.black;
+  
+  return Dialog(
+    backgroundColor: Colors.transparent,
+    child: Container(
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.08),
+          width: 1,
         ),
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.person_add_outlined,
+            size: 48,
+            color: textColor.withOpacity(0.3),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Aucun ${_getTermClient()}',
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w600,
+              color: textColor,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Voulez-vous en ajouter un maintenant ?',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 14,
+              color: textColor.withOpacity(0.7),
+            ),
+          ),
+          const SizedBox(height: 24),
+          
+          Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => Navigator.of(c).pop(false),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      color: textColor.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: textColor.withOpacity(0.1),
+                        width: 1,
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      'Annuler',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: textColor.withOpacity(0.7),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              
+              const SizedBox(width: 12),
+              
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => Navigator.of(c).pop(true),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [
+                          Color(0xFFD86C01),
+                          Color(0xFFFF8C2A),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFD86C01).withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      'Ajouter',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
+},
       );
       if (add == true) {
         final newId = await createClient();
