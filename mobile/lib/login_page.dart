@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'app_settings.dart';
+import 'services/pin_auth_offline_service.dart';
 
 class LoginPage extends StatefulWidget {
   final void Function(String phone, String? shop, int? id, String? firstName, String? lastName, bool? boutiqueModeEnabled) onLogin;
@@ -13,9 +14,16 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final phoneCtl = TextEditingController();
-  final passCtl = TextEditingController();
+  bool isLoginMode = true;
+  String pin = '';
   bool loading = false;
+  bool showPin = false;
+
+  // Signup fields
+  late TextEditingController phoneCtl;
+  late TextEditingController firstNameCtl;
+  late TextEditingController lastNameCtl;
+  late TextEditingController shopNameCtl;
 
   String get apiHost {
     if (kIsWeb) return 'http://localhost:3000/api';
@@ -25,21 +33,36 @@ class _LoginPageState extends State<LoginPage> {
     return 'http://localhost:3000/api';
   }
 
-  Future doLogin() async {
-    setState(() {
-      loading = true;
-    });
+  @override
+  void initState() {
+    super.initState();
+    phoneCtl = TextEditingController();
+    firstNameCtl = TextEditingController();
+    lastNameCtl = TextEditingController();
+    shopNameCtl = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    phoneCtl.dispose();
+    firstNameCtl.dispose();
+    lastNameCtl.dispose();
+    shopNameCtl.dispose();
+    super.dispose();
+  }
+
+  Future _doLogin() async {
+    setState(() => loading = true);
     try {
-      final body = {'phone': phoneCtl.text.trim(), 'password': passCtl.text};
+      final body = {'pin': pin};
       final res = await http.post(
-          Uri.parse('$apiHost/auth/login'.replaceFirst('\u007f', '')),
+          Uri.parse('$apiHost/auth/login-pin'),
           headers: {'Content-Type': 'application/json'},
           body: json.encode(body)).timeout(const Duration(seconds: 8));
+      
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
-        final id = data['id'] is int
-            ? data['id'] as int
-            : (data['id'] is String ? int.tryParse(data['id']) : null);
+        final id = data['id'] is int ? data['id'] as int : (data['id'] is String ? int.tryParse(data['id']) : null);
         
         // Save auth token
         if (data['auth_token'] != null) {
@@ -51,357 +74,59 @@ class _LoginPageState extends State<LoginPage> {
           }
         }
         
+        // Cache offline
+        await PinAuthOfflineService().cacheCredentials(
+          pin: pin,
+          token: data['auth_token'],
+          phone: data['phone'],
+          firstName: data['first_name'] ?? '',
+          lastName: data['last_name'] ?? '',
+          shopName: data['shop_name'] ?? '',
+          userId: id ?? 0,
+        );
+        
         widget.onLogin(data['phone'], data['shop_name'], id, data['first_name'], data['last_name'], data['boutique_mode_enabled'] as bool?);
       } else {
-        final body = res.body;
-        final lower = body.toLowerCase();
-        String friendly;
-        if (res.statusCode == 401 || lower.contains('invalid') || lower.contains('incorrect') || lower.contains('credentials') || lower.contains('wrong')) {
-          friendly = 'Identifiants incorrects. Vérifiez le numéro et le mot de passe.';
-        } else if (res.statusCode == 404 || lower.contains('not found')) {
-          friendly = 'Compte introuvable. Vérifiez le numéro ou créez un compte.';
-        } else {
-          // try to show server message if available
-          try {
-            final parsed = json.decode(body);
-            if (parsed is Map && parsed['message'] != null) {
-              friendly = parsed['message'].toString();
-            } else {
-              friendly = 'Connexion échouée (${res.statusCode}).';
-            }
-          } catch (_) {
-            friendly = 'Connexion échouée (${res.statusCode}).';
-          }
-        }
-        await _showMinimalDialog('Erreur', friendly);
+        setState(() => pin = '');
+        await _showMinimalDialog('Erreur', 'PIN incorrect. Réessayez.');
       }
     } catch (e) {
-      await _showMinimalDialog('Erreur', 'Erreur de connexion: $e');
+      setState(() => pin = '');
+      await _showMinimalDialog('Erreur', 'Erreur connexion: $e');
     } finally {
       setState(() => loading = false);
     }
   }
 
-  Future<void> _showMinimalDialog(String title, String message) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black;
+  Future _doSignup() async {
+    if (phoneCtl.text.isEmpty || firstNameCtl.text.isEmpty || lastNameCtl.text.isEmpty || pin.isEmpty) {
+      await _showMinimalDialog('Erreur', 'Veuillez remplir tous les champs.');
+      return;
+    }
     
-    return showDialog(
-      context: context,
-      barrierColor: Colors.black87,
-      builder: (ctx) => Dialog(
-        backgroundColor: Theme.of(context).cardColor,
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 500),
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title.toUpperCase(),
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 1.5,
-                  color: textColor,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                message,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w300,
-                  color: textColor,
-                ),
-              ),
-              const SizedBox(height: 24),
-              Align(
-                alignment: Alignment.centerRight,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.of(ctx).pop(),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isDark ? Colors.white : Colors.black,
-                    foregroundColor: isDark ? Colors.black : Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
-                  ),
-                  child: Text(
-                    'OK',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1,
-                      color: isDark ? Colors.black : Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+    if (pin.length != 4) {
+      await _showMinimalDialog('Erreur', 'Le PIN doit contenir exactement 4 chiffres.');
+      return;
+    }
 
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black;
-    final textColorSecondary = isDark ? Colors.white70 : Colors.black54;
-    final borderColor = isDark ? Colors.white24 : Colors.black26;
-
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: SafeArea(
-        child: Form(
-          child: Column(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 400),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Header
-                          const SizedBox(height: 40),
-                          Center(
-                            child: Column(
-                              children: [
-                                Container(
-                                  width: 64,
-                                  height: 64,
-                                  decoration: BoxDecoration(
-                                    color: isDark ? Colors.white : Colors.black,
-                                  ),
-                                  child: Icon(
-                                    Icons.receipt_long,
-                                    color: isDark ? Colors.black : Colors.white,
-                                    size: 32,
-                                  ),
-                                ),
-                                const SizedBox(height: 24),
-                                Text(
-                                  'GESTION DE DETTES',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: 2,
-                                    color: textColor,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Application Boutique',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w300,
-                                    color: textColorSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 60),
-
-                          // Login Form
-                          Text(
-                            'CONNEXION',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 1.5,
-                              color: textColorSecondary,
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-
-                          // Phone Field
-                          TextField(
-                            controller: phoneCtl,
-                            keyboardType: TextInputType.phone,
-                            style: TextStyle(color: textColor, fontSize: 15),
-                            decoration: InputDecoration(
-                              labelText: 'Numéro de téléphone',
-                              labelStyle: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w400,
-                                color: textColorSecondary,
-                              ),
-                              border: const OutlineInputBorder(borderSide: BorderSide(width: 0.5)),
-                              enabledBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: borderColor, width: 0.5),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: textColor, width: 1),
-                              ),
-                              contentPadding: const EdgeInsets.all(16),
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-
-                          // Password Field
-                          TextField(
-                            controller: passCtl,
-                            obscureText: true,
-                            style: TextStyle(color: textColor, fontSize: 15),
-                            decoration: InputDecoration(
-                              labelText: 'Mot de passe',
-                              labelStyle: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w400,
-                                color: textColorSecondary,
-                              ),
-                              border: const OutlineInputBorder(borderSide: BorderSide(width: 0.5)),
-                              enabledBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: borderColor, width: 0.5),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: textColor, width: 1),
-                              ),
-                              contentPadding: const EdgeInsets.all(16),
-                            ),
-                          ),
-                          const SizedBox(height: 32),
-
-                          // Login Button
-                          SizedBox(
-                            width: double.infinity,
-                            height: 50,
-                            child: ElevatedButton(
-                              onPressed: loading ? null : doLogin,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: isDark ? Colors.white : Colors.black,
-                                foregroundColor: isDark ? Colors.black : Colors.white,
-                                disabledBackgroundColor: isDark ? Colors.white24 : Colors.black26,
-                                disabledForegroundColor: isDark ? Colors.black38 : Colors.white54,
-                                padding: const EdgeInsets.symmetric(vertical: 14),
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
-                              ),
-                              child: loading
-                                  ? const SizedBox(
-                                      height: 20,
-                                      width: 20,
-                                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                    )
-                                  : Text(
-                                      'SE CONNECTER',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        letterSpacing: 1.5,
-                                        color: isDark ? Colors.black : Colors.white,
-                                      ),
-                                    ),
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-
-                          // Links Section
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              TextButton(
-                                onPressed: () => Navigator.of(context).push(
-                                  MaterialPageRoute(builder: (_) => const ForgotPasswordPage()),
-                                ),
-                                child: Text(
-                                  'MOT DE PASSE OUBLIÉ?',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: 1,
-                                    color: textColorSecondary,
-                                  ),
-                                ),
-                              ),
-                              TextButton(
-                                onPressed: () => Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => RegisterPage(
-                                      onRegister: (phone, shop, id, firstName, lastName, boutiqueModeEnabled) {
-                                        widget.onLogin(phone, shop, id, firstName, lastName, boutiqueModeEnabled);
-                                      },
-                                    ),
-                                  ),
-                                ),
-                                child: Text(
-                                  'CRÉER UN COMPTE',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: 1,
-                                    color: textColor,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-
-                          const SizedBox(height: 80),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class RegisterPage extends StatefulWidget {
-  final void Function(String phone, String? shop, int? id, String? firstName, String? lastName, bool? boutiqueModeEnabled) onRegister;
-  const RegisterPage({super.key, required this.onRegister});
-  @override
-  State<RegisterPage> createState() => _RegisterPageState();
-}
-
-class _RegisterPageState extends State<RegisterPage> {
-  final phoneCtl = TextEditingController();
-  final passCtl = TextEditingController();
-  final firstNameCtl = TextEditingController();
-  final lastNameCtl = TextEditingController();
-  final securityQuestionCtl = TextEditingController();
-  final securityAnswerCtl = TextEditingController();
-  bool loading = false;
-
-  String get apiHost {
-    if (kIsWeb) return 'http://localhost:3000/api';
-    try {
-      if (Platform.isAndroid) return 'http://10.0.2.2:3000/api';
-    } catch (_) {}
-    return 'http://localhost:3000/api';
-  }
-
-  Future doRegister() async {
     setState(() => loading = true);
     try {
       final body = {
         'phone': phoneCtl.text.trim(),
-        'password': passCtl.text,
+        'pin': pin,
         'first_name': firstNameCtl.text.trim(),
         'last_name': lastNameCtl.text.trim(),
-        'security_question': securityQuestionCtl.text.trim(),
-        'security_answer': securityAnswerCtl.text.trim()
+        'shop_name': shopNameCtl.text.trim().isEmpty ? null : shopNameCtl.text.trim(),
       };
+      
       final res = await http.post(
-          Uri.parse('$apiHost/auth/register'.replaceFirst('\u007f', '')),
+          Uri.parse('$apiHost/auth/register-pin'),
           headers: {'Content-Type': 'application/json'},
           body: json.encode(body)).timeout(const Duration(seconds: 8));
+      
       if (res.statusCode == 201) {
         final data = json.decode(res.body);
-        final id = data['id'] is int
-            ? data['id'] as int
-            : (data['id'] is String ? int.tryParse(data['id']) : null);
+        final id = data['id'] is int ? data['id'] as int : (data['id'] is String ? int.tryParse(data['id']) : null);
         
         // Save auth token
         if (data['auth_token'] != null) {
@@ -413,10 +138,20 @@ class _RegisterPageState extends State<RegisterPage> {
           }
         }
         
-        widget.onRegister(data['phone'], null, id, data['first_name'], data['last_name'], data['boutique_mode_enabled'] as bool?);
-        Navigator.of(context).pop();
+        // Cache offline
+        await PinAuthOfflineService().cacheCredentials(
+          pin: pin,
+          token: data['auth_token'],
+          phone: data['phone'],
+          firstName: data['first_name'] ?? '',
+          lastName: data['last_name'] ?? '',
+          shopName: data['shop_name'] ?? '',
+          userId: id ?? 0,
+        );
+        
+        widget.onLogin(data['phone'], data['shop_name'], id, data['first_name'], data['last_name'], data['boutique_mode_enabled'] as bool?);
       } else {
-        await _showMinimalDialog('Erreur', 'Inscription échouée: ${res.statusCode}\n${res.body}');
+        await _showMinimalDialog('Erreur', 'Inscription échouée: ${res.statusCode}');
       }
     } catch (e) {
       await _showMinimalDialog('Erreur', 'Erreur inscription: $e');
@@ -425,404 +160,75 @@ class _RegisterPageState extends State<RegisterPage> {
     }
   }
 
-  Future<void> _showMinimalDialog(String title, String message) {
+  void _showPinConfirmDialog() {
+    final TextEditingController confirmPinCtl = TextEditingController();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black;
+    final borderColor = isDark ? Colors.white24 : Colors.black26;
     
-    return showDialog(
+    showDialog(
       context: context,
       barrierColor: Colors.black87,
       builder: (ctx) => Dialog(
         backgroundColor: Theme.of(context).cardColor,
         child: Container(
-          constraints: const BoxConstraints(maxWidth: 500),
+          constraints: const BoxConstraints(maxWidth: 400),
           padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                title.toUpperCase(),
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 1.5,
-                  color: textColor,
-                ),
-              ),
+              Text('CONFIRMER LE PIN', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1.5)),
               const SizedBox(height: 16),
-              Text(
-                message,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w300,
-                  color: textColor,
+              Text('Entrez à nouveau votre PIN à 4 chiffres', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w400)),
+              const SizedBox(height: 24),
+              // PIN input field with system keyboard
+              TextField(
+                controller: confirmPinCtl,
+                keyboardType: TextInputType.number,
+                maxLength: 4,
+                obscureText: true,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: textColor, letterSpacing: 10),
+                decoration: InputDecoration(
+                  border: const OutlineInputBorder(borderSide: BorderSide(width: 2)),
+                  enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: borderColor, width: 2)),
+                  focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: textColor, width: 2)),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                  counterText: '',
                 ),
               ),
               const SizedBox(height: 24),
-              Align(
-                alignment: Alignment.centerRight,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.of(ctx).pop(),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isDark ? Colors.white : Colors.black,
-                    foregroundColor: isDark ? Colors.black : Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
-                  ),
-                  child: Text(
-                    'OK',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1,
-                      color: isDark ? Colors.black : Colors.white,
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.grey),
+                      child: const Text('Annuler'),
                     ),
                   ),
-                ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        if (confirmPinCtl.text == pin) {
+                          Navigator.pop(ctx);
+                          _doSignup();
+                        } else {
+                          ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Les PINs ne correspondent pas')));
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+                      child: const Text('Confirmer'),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
         ),
       ),
     );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black;
-    final textColorSecondary = isDark ? Colors.white70 : Colors.black54;
-    final borderColor = isDark ? Colors.white24 : Colors.black26;
-
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        leading: IconButton(
-          icon: Icon(Icons.close, color: textColor, size: 24),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Text(
-          'NOUVEAU COMPTE',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 2,
-            color: textColor,
-          ),
-        ),
-        centerTitle: true,
-      ),
-      body: SafeArea(
-        child: Form(
-          child: Column(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 400),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 20),
-                          Text(
-                            'INSCRIPTION',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 1.5,
-                              color: textColorSecondary,
-                            ),
-                          ),
-                          const SizedBox(height: 32),
-
-                          // First Name
-                          TextField(
-                            controller: firstNameCtl,
-                            style: TextStyle(color: textColor, fontSize: 15),
-                            decoration: InputDecoration(
-                              labelText: 'Prénom',
-                              labelStyle: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w400,
-                                color: textColorSecondary,
-                              ),
-                              border: const OutlineInputBorder(borderSide: BorderSide(width: 0.5)),
-                              enabledBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: borderColor, width: 0.5),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: textColor, width: 1),
-                              ),
-                              contentPadding: const EdgeInsets.all(16),
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-
-                          // Last Name
-                          TextField(
-                            controller: lastNameCtl,
-                            style: TextStyle(color: textColor, fontSize: 15),
-                            decoration: InputDecoration(
-                              labelText: 'Nom',
-                              labelStyle: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w400,
-                                color: textColorSecondary,
-                              ),
-                              border: const OutlineInputBorder(borderSide: BorderSide(width: 0.5)),
-                              enabledBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: borderColor, width: 0.5),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: textColor, width: 1),
-                              ),
-                              contentPadding: const EdgeInsets.all(16),
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-
-                          // Phone
-                          TextField(
-                            controller: phoneCtl,
-                            keyboardType: TextInputType.phone,
-                            style: TextStyle(color: textColor, fontSize: 15),
-                            decoration: InputDecoration(
-                              labelText: 'Numéro de téléphone',
-                              labelStyle: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w400,
-                                color: textColorSecondary,
-                              ),
-                              border: const OutlineInputBorder(borderSide: BorderSide(width: 0.5)),
-                              enabledBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: borderColor, width: 0.5),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: textColor, width: 1),
-                              ),
-                              contentPadding: const EdgeInsets.all(16),
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-
-                          // Password
-                          TextField(
-                            controller: passCtl,
-                            obscureText: true,
-                            style: TextStyle(color: textColor, fontSize: 15),
-                            decoration: InputDecoration(
-                              labelText: 'Mot de passe',
-                              labelStyle: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w400,
-                                color: textColorSecondary,
-                              ),
-                              border: const OutlineInputBorder(borderSide: BorderSide(width: 0.5)),
-                              enabledBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: borderColor, width: 0.5),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: textColor, width: 1),
-                              ),
-                              contentPadding: const EdgeInsets.all(16),
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-
-                          // Security Question
-                          TextField(
-                            controller: securityQuestionCtl,
-                            style: TextStyle(color: textColor, fontSize: 15),
-                            decoration: InputDecoration(
-                              labelText: 'Question secrète',
-                              labelStyle: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w400,
-                                color: textColorSecondary,
-                              ),
-                              border: const OutlineInputBorder(borderSide: BorderSide(width: 0.5)),
-                              enabledBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: borderColor, width: 0.5),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: textColor, width: 1),
-                              ),
-                              contentPadding: const EdgeInsets.all(16),
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-
-                          // Security Answer
-                          TextField(
-                            controller: securityAnswerCtl,
-                            style: TextStyle(color: textColor, fontSize: 15),
-                            decoration: InputDecoration(
-                              labelText: 'Réponse secrète',
-                              labelStyle: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w400,
-                                color: textColorSecondary,
-                              ),
-                              border: const OutlineInputBorder(borderSide: BorderSide(width: 0.5)),
-                              enabledBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: borderColor, width: 0.5),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: textColor, width: 1),
-                              ),
-                              contentPadding: const EdgeInsets.all(16),
-                            ),
-                          ),
-                          const SizedBox(height: 40),
-
-                          // Register Button
-                          SizedBox(
-                            width: double.infinity,
-                            height: 50,
-                            child: ElevatedButton(
-                              onPressed: loading ? null : doRegister,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: isDark ? Colors.white : Colors.black,
-                                foregroundColor: isDark ? Colors.black : Colors.white,
-                                disabledBackgroundColor: isDark ? Colors.white24 : Colors.black26,
-                                disabledForegroundColor: isDark ? Colors.black38 : Colors.white54,
-                                padding: const EdgeInsets.symmetric(vertical: 14),
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
-                              ),
-                              child: loading
-                                  ? const SizedBox(
-                                      height: 20,
-                                      width: 20,
-                                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                    )
-                                  : Text(
-                                      'CRÉER LE COMPTE',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        letterSpacing: 1.5,
-                                        color: isDark ? Colors.black : Colors.white,
-                                      ),
-                                    ),
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-
-                          Center(
-                            child: TextButton(
-                              onPressed: () => Navigator.of(context).pop(),
-                              child: Text(
-                                'DÉJÀ UN COMPTE? SE CONNECTER',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: 1,
-                                  color: textColorSecondary,
-                                ),
-                              ),
-                            ),
-                          ),
-
-                          const SizedBox(height: 80),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class ForgotPasswordPage extends StatefulWidget {
-  const ForgotPasswordPage({super.key});
-  @override
-  State<ForgotPasswordPage> createState() => _ForgotPasswordPageState();
-}
-
-class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
-  final phoneCtl = TextEditingController();
-  final answerCtl = TextEditingController();
-  final newPasswordCtl = TextEditingController();
-  String? securityQuestion;
-  bool loading = false;
-  bool showAnswerField = false;
-
-  String get apiHost {
-    if (kIsWeb) return 'http://localhost:3000/api';
-    try {
-      if (Platform.isAndroid) return 'http://10.0.2.2:3000/api';
-    } catch (_) {}
-    return 'http://localhost:3000/api';
-  }
-
-  Future getSecurityQuestion() async {
-    setState(() => loading = true);
-    try {
-      final res = await http.get(
-          Uri.parse('$apiHost/auth/forgot-password/${phoneCtl.text.trim()}'.replaceFirst('\u007f', '')),
-          headers: {'Content-Type': 'application/json'}
-      ).timeout(const Duration(seconds: 8));
-      
-      if (res.statusCode == 200) {
-        final data = json.decode(res.body);
-        setState(() {
-          securityQuestion = data['security_question'];
-          showAnswerField = true;
-        });
-      } else {
-        await _showMinimalDialog('Erreur', 'Compte introuvable avec ce numéro.');
-      }
-    } catch (e) {
-      await _showMinimalDialog('Erreur', 'Erreur: $e');
-    } finally {
-      setState(() => loading = false);
-    }
-  }
-
-  Future resetPassword() async {
-    setState(() => loading = true);
-    try {
-      final body = {
-        'phone': phoneCtl.text.trim(),
-        'security_answer': answerCtl.text.trim(),
-        'new_password': newPasswordCtl.text
-      };
-      final res = await http.post(
-          Uri.parse('$apiHost/auth/reset-password'.replaceFirst('\u007f', '')),
-          headers: {'Content-Type': 'application/json'},
-          body: json.encode(body)).timeout(const Duration(seconds: 8));
-      
-      if (res.statusCode == 200) {
-        await _showMinimalDialog('Succès', 'Mot de passe réinitialisé avec succès!');
-        Navigator.of(context).pop();
-      } else {
-        final body = res.body;
-        String friendly = 'Erreur lors de la réinitialisation.';
-        try {
-          final parsed = json.decode(body);
-          if (parsed is Map && parsed['message'] != null) {
-            friendly = parsed['message'].toString();
-          }
-        } catch (_) {}
-        
-        await _showMinimalDialog('Erreur', friendly);
-      }
-    } catch (e) {
-      await _showMinimalDialog('Erreur', 'Erreur: $e');
-    } finally {
-      setState(() => loading = false);
-    }
   }
 
   Future<void> _showMinimalDialog(String title, String message) {
@@ -895,225 +301,189 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     final textColorSecondary = isDark ? Colors.white70 : Colors.black54;
     final borderColor = isDark ? Colors.white24 : Colors.black26;
 
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        leading: IconButton(
-          icon: Icon(Icons.close, color: textColor, size: 24),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Text(
-          'MOT DE PASSE OUBLIÉ',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 2,
-            color: textColor,
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        appBar: AppBar(
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          bottom: TabBar(
+            tabs: [
+              Tab(text: 'CONNEXION'),
+              Tab(text: 'INSCRIPTION'),
+            ],
+            labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            onTap: (index) => setState(() => isLoginMode = (index == 0)),
           ),
         ),
-        centerTitle: true,
-      ),
-      body: SafeArea(
-        child: Form(
-          child: Column(
+        body: SafeArea(
+          child: TabBarView(
             children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 400),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 20),
-                          Text(
-                            'RÉINITIALISATION',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 1.5,
-                              color: textColorSecondary,
+              // Login Tab
+              SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 400),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        const SizedBox(height: 40),
+                        Container(
+                          width: 64,
+                          height: 64,
+                          decoration: BoxDecoration(color: isDark ? Colors.white : Colors.black),
+                          child: Icon(Icons.receipt_long, color: isDark ? Colors.black : Colors.white, size: 32),
+                        ),
+                        const SizedBox(height: 24),
+                        Text('GESTION DE DETTES', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 2, color: textColor)),
+                        const SizedBox(height: 8),
+                        Text('Connexion PIN', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w300, color: textColorSecondary)),
+                        const SizedBox(height: 60),
+
+                        Text('ENTREZ VOTRE PIN', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1.5, color: textColorSecondary)),
+                        const SizedBox(height: 32),
+
+                        // PIN input field with system keyboard
+                        TextField(
+                          keyboardType: TextInputType.number,
+                          maxLength: 4,
+                          obscureText: !showPin,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: textColor, letterSpacing: 12),
+                          decoration: InputDecoration(
+                            border: const OutlineInputBorder(borderSide: BorderSide(width: 2)),
+                            enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: borderColor, width: 2)),
+                            focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: textColor, width: 2)),
+                            contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                            counterText: '',
+                            suffixIcon: IconButton(
+                              icon: Icon(showPin ? Icons.visibility : Icons.visibility_off, size: 20),
+                              onPressed: () => setState(() => showPin = !showPin),
                             ),
                           ),
-                          const SizedBox(height: 32),
+                          onChanged: (value) {
+                            setState(() => pin = value);
+                            if (value.length == 4 && isLoginMode) {
+                              _doLogin();
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 40),
 
-                          // Phone Field
-                          TextField(
-                            controller: phoneCtl,
-                            keyboardType: TextInputType.phone,
-                            style: TextStyle(color: textColor, fontSize: 15),
-                            decoration: InputDecoration(
-                              labelText: 'Numéro de téléphone',
-                              labelStyle: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w400,
-                                color: textColorSecondary,
-                              ),
-                              border: const OutlineInputBorder(borderSide: BorderSide(width: 0.5)),
-                              enabledBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: borderColor, width: 0.5),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: textColor, width: 1),
-                              ),
-                              contentPadding: const EdgeInsets.all(16),
+                        const SizedBox(height: 80),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              // Signup Tab
+              SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 400),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 20),
+                        Text('INSCRIPTION', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1.5, color: textColorSecondary)),
+                        const SizedBox(height: 24),
+
+                        TextField(
+                          controller: firstNameCtl,
+                          style: TextStyle(color: textColor, fontSize: 15),
+                          decoration: InputDecoration(
+                            labelText: 'Prénom',
+                            border: const OutlineInputBorder(borderSide: BorderSide(width: 0.5)),
+                            enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: borderColor, width: 0.5)),
+                            focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: textColor, width: 1)),
+                            contentPadding: const EdgeInsets.all(16),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        TextField(
+                          controller: lastNameCtl,
+                          style: TextStyle(color: textColor, fontSize: 15),
+                          decoration: InputDecoration(
+                            labelText: 'Nom',
+                            border: const OutlineInputBorder(borderSide: BorderSide(width: 0.5)),
+                            enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: borderColor, width: 0.5)),
+                            focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: textColor, width: 1)),
+                            contentPadding: const EdgeInsets.all(16),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        TextField(
+                          controller: phoneCtl,
+                          keyboardType: TextInputType.phone,
+                          style: TextStyle(color: textColor, fontSize: 15),
+                          decoration: InputDecoration(
+                            labelText: 'Téléphone',
+                            border: const OutlineInputBorder(borderSide: BorderSide(width: 0.5)),
+                            enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: borderColor, width: 0.5)),
+                            focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: textColor, width: 1)),
+                            contentPadding: const EdgeInsets.all(16),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        TextField(
+                          controller: shopNameCtl,
+                          style: TextStyle(color: textColor, fontSize: 15),
+                          decoration: InputDecoration(
+                            labelText: 'Nom boutique (optionnel)',
+                            border: const OutlineInputBorder(borderSide: BorderSide(width: 0.5)),
+                            enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: borderColor, width: 0.5)),
+                            focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: textColor, width: 1)),
+                            contentPadding: const EdgeInsets.all(16),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+
+                        Text('CHOISIR UN PIN', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1.5, color: textColorSecondary)),
+                        const SizedBox(height: 16),
+
+                        // PIN input field for signup
+                        TextField(
+                          keyboardType: TextInputType.number,
+                          maxLength: 4,
+                          obscureText: !showPin,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: textColor, letterSpacing: 12),
+                          decoration: InputDecoration(
+                            border: const OutlineInputBorder(borderSide: BorderSide(width: 2)),
+                            enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: borderColor, width: 2)),
+                            focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: textColor, width: 2)),
+                            contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                            counterText: '',
+                            suffixIcon: IconButton(
+                              icon: Icon(showPin ? Icons.visibility : Icons.visibility_off, size: 20),
+                              onPressed: () => setState(() => showPin = !showPin),
                             ),
                           ),
-                          const SizedBox(height: 20),
+                          onChanged: (value) {
+                            setState(() => pin = value);
+                          },
+                        ),
+                        const SizedBox(height: 24),
 
-                          if (securityQuestion != null) ...[
-                            // Security Question Display
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                border: Border.all(color: borderColor, width: 0.5),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'QUESTION SÉCURITÉ',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                      letterSpacing: 1.5,
-                                      color: textColorSecondary,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    securityQuestion!,
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w400,
-                                      color: textColor,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 20),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: ElevatedButton(
+                            onPressed: (loading || pin.length != 4) ? null : _showPinConfirmDialog,
+                            style: ElevatedButton.styleFrom(backgroundColor: isDark ? Colors.white : Colors.black),
+                            child: Text(pin.length == 4 ? 'CONFIRMER PIN' : 'Entrez 4 chiffres', style: TextStyle(color: isDark ? Colors.black : Colors.white)),
+                          ),
+                        ),
 
-                            // Security Answer
-                            TextField(
-                              controller: answerCtl,
-                              style: TextStyle(color: textColor, fontSize: 15),
-                              decoration: InputDecoration(
-                                labelText: 'Réponse secrète',
-                                labelStyle: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w400,
-                                  color: textColorSecondary,
-                                ),
-                                border: const OutlineInputBorder(borderSide: BorderSide(width: 0.5)),
-                                enabledBorder: OutlineInputBorder(
-                                  borderSide: BorderSide(color: borderColor, width: 0.5),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderSide: BorderSide(color: textColor, width: 1),
-                                ),
-                                contentPadding: const EdgeInsets.all(16),
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-
-                            // New Password
-                            TextField(
-                              controller: newPasswordCtl,
-                              obscureText: true,
-                              style: TextStyle(color: textColor, fontSize: 15),
-                              decoration: InputDecoration(
-                                labelText: 'Nouveau mot de passe',
-                                labelStyle: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w400,
-                                  color: textColorSecondary,
-                                ),
-                                border: const OutlineInputBorder(borderSide: BorderSide(width: 0.5)),
-                                enabledBorder: OutlineInputBorder(
-                                  borderSide: BorderSide(color: borderColor, width: 0.5),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderSide: BorderSide(color: textColor, width: 1),
-                                ),
-                                contentPadding: const EdgeInsets.all(16),
-                              ),
-                            ),
-                            const SizedBox(height: 40),
-
-                            // Reset Button
-                            SizedBox(
-                              width: double.infinity,
-                              height: 50,
-                              child: ElevatedButton(
-                                onPressed: loading ? null : resetPassword,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: isDark ? Colors.white : Colors.black,
-                                  foregroundColor: isDark ? Colors.black : Colors.white,
-                                  disabledBackgroundColor: isDark ? Colors.white24 : Colors.black26,
-                                  disabledForegroundColor: isDark ? Colors.black38 : Colors.white54,
-                                  padding: const EdgeInsets.symmetric(vertical: 14),
-                                  elevation: 0,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
-                                ),
-                                child: loading
-                                    ? const SizedBox(
-                                        height: 20,
-                                        width: 20,
-                                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                      )
-                                    : Text(
-                                        'RÉINITIALISER',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          letterSpacing: 1.5,
-                                          color: isDark ? Colors.black : Colors.white,
-                                        ),
-                                      ),
-                              ),
-                            ),
-                          ] else ...[
-                            // Continue Button
-                            SizedBox(
-                              width: double.infinity,
-                              height: 50,
-                              child: ElevatedButton(
-                                onPressed: loading ? null : getSecurityQuestion,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: isDark ? Colors.white : Colors.black,
-                                  foregroundColor: isDark ? Colors.black : Colors.white,
-                                  disabledBackgroundColor: isDark ? Colors.white24 : Colors.black26,
-                                  disabledForegroundColor: isDark ? Colors.black38 : Colors.white54,
-                                  padding: const EdgeInsets.symmetric(vertical: 14),
-                                  elevation: 0,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
-                                ),
-                                child: loading
-                                    ? const SizedBox(
-                                        height: 20,
-                                        width: 20,
-                                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                      )
-                                    : Text(
-                                        'CONTINUER',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          letterSpacing: 1.5,
-                                          color: isDark ? Colors.black : Colors.white,
-                                        ),
-                                      ),
-                              ),
-                            ),
-                          ],
-
-                          const SizedBox(height: 80),
-                        ],
-                      ),
+                        const SizedBox(height: 80),
+                      ],
                     ),
                   ),
                 ),

@@ -19,7 +19,48 @@ function generateDeviceId() {
   return crypto.randomBytes(16).toString('hex');
 }
 
-// Register owner and generate token
+// Register owner with PIN (replaces password-based registration)
+router.post('/register-pin', async (req, res) => {
+  const { phone, pin, first_name, last_name, shop_name, device_id } = req.body;
+  
+  if (!phone || !pin) {
+    return res.status(400).json({ error: 'phone and pin required' });
+  }
+  
+  if (pin.length !== 4 || !/^\d+$/.test(pin)) {
+    return res.status(400).json({ error: 'PIN must be exactly 4 digits' });
+  }
+  
+  try {
+    // Check if phone or PIN already exists
+    const existingPhone = await pool.query('SELECT id FROM owners WHERE phone=$1', [phone]);
+    if (existingPhone.rowCount > 0) {
+      return res.status(409).json({ error: 'Phone number already registered' });
+    }
+    
+    const existingPin = await pool.query('SELECT id FROM owners WHERE pin=$1', [pin]);
+    if (existingPin.rowCount > 0) {
+      return res.status(409).json({ error: 'PIN already in use' });
+    }
+    
+    // Generate token
+    const authToken = generateToken();
+    const tokenExpiresAt = new Date(Date.now() + TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+    
+    const result = await pool.query(
+      'INSERT INTO owners (phone, pin, shop_name, first_name, last_name, auth_token, token_expires_at, token_created_at, device_id, last_login_at) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, NOW()) RETURNING id, phone, shop_name, first_name, last_name, auth_token, boutique_mode_enabled',
+      [phone, pin, shop_name || null, first_name || '', last_name || '', authToken, tokenExpiresAt, device_id || generateDeviceId()]
+    );
+    
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    if (err.code === '23505') return res.status(409).json({ error: 'Owner already exists' });
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+// Register owner and generate token (legacy - kept for backward compatibility)
 router.post('/register', async (req, res) => {
   const { phone, password, shop_name, first_name, last_name, security_question, security_answer, device_id } = req.body;
   if (!phone || !password) return res.status(400).json({ error: 'phone and password required' });
@@ -255,6 +296,122 @@ router.post('/update-boutique-mode', async (req, res) => {
     );
     
     res.json(updateResult.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+// PIN-based login (simple 4-digit PIN)
+router.post('/login-pin', async (req, res) => {
+  const { pin } = req.body;
+  
+  if (!pin || pin.length !== 4 || !/^\d+$/.test(pin)) {
+    return res.status(400).json({ error: 'PIN must be exactly 4 digits' });
+  }
+  
+  try {
+    // Find owner by PIN
+    const result = await pool.query(
+      'SELECT id, phone, shop_name, first_name, last_name, boutique_mode_enabled FROM owners WHERE pin=$1',
+      [pin]
+    );
+    
+    if (result.rowCount === 0) {
+      return res.status(401).json({ error: 'Invalid PIN' });
+    }
+    
+    const owner = result.rows[0];
+    
+    // Generate new token
+    const authToken = generateToken();
+    const tokenExpiresAt = new Date(Date.now() + TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+    
+    // Update with new token
+    const updateResult = await pool.query(
+      'UPDATE owners SET auth_token=$1, token_expires_at=$2, token_created_at=NOW(), last_login_at=NOW() WHERE id=$3 RETURNING id, phone, shop_name, first_name, last_name, auth_token, boutique_mode_enabled',
+      [authToken, tokenExpiresAt, owner.id]
+    );
+    
+    res.json(updateResult.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+// Set or update PIN for an owner
+router.post('/set-pin', async (req, res) => {
+  const { auth_token, pin } = req.body;
+  
+  if (!auth_token || !pin) {
+    return res.status(400).json({ error: 'auth_token and pin required' });
+  }
+  
+  if (pin.length !== 4 || !/^\d+$/.test(pin)) {
+    return res.status(400).json({ error: 'PIN must be exactly 4 digits' });
+  }
+  
+  try {
+    // Verify token first
+    const ownerResult = await pool.query('SELECT id FROM owners WHERE auth_token=$1', [auth_token]);
+    if (ownerResult.rowCount === 0) return res.status(401).json({ error: 'Invalid token' });
+    
+    const ownerId = ownerResult.rows[0].id;
+    
+    // Check if PIN already exists (for another owner)
+    const pinCheck = await pool.query(
+      'SELECT id FROM owners WHERE pin=$1 AND id != $2',
+      [pin, ownerId]
+    );
+    
+    if (pinCheck.rowCount > 0) {
+      return res.status(409).json({ error: 'PIN already in use' });
+    }
+    
+    // Update PIN
+    const updateResult = await pool.query(
+      'UPDATE owners SET pin=$1, updated_at=NOW() WHERE id=$2 RETURNING id, phone, shop_name, first_name, last_name, pin',
+      [pin, ownerId]
+    );
+    
+    res.json({ success: true, message: 'PIN set successfully', user: updateResult.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+// Remove PIN from account (requires password)
+router.post('/remove-pin', async (req, res) => {
+  const { auth_token, password } = req.body;
+  
+  if (!auth_token || !password) {
+    return res.status(400).json({ error: 'auth_token and password required' });
+  }
+  
+  try {
+    // Verify token
+    const ownerResult = await pool.query(
+      'SELECT id, password FROM owners WHERE auth_token=$1',
+      [auth_token]
+    );
+    
+    if (ownerResult.rowCount === 0) return res.status(401).json({ error: 'Invalid token' });
+    
+    const owner = ownerResult.rows[0];
+    
+    // Verify password
+    const passwordMatch = await bcrypt.compare(password, owner.password);
+    if (!passwordMatch) return res.status(401).json({ error: 'Invalid password' });
+    
+    // Remove PIN
+    const updateResult = await pool.query(
+      'UPDATE owners SET pin=NULL, updated_at=NOW() WHERE id=$1 RETURNING id, phone, shop_name',
+      [owner.id]
+    );
+    
+    res.json({ success: true, message: 'PIN removed successfully', user: updateResult.rows[0] });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'DB error' });

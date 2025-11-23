@@ -12,7 +12,7 @@ import 'package:intl/intl.dart';
 // google_fonts removed - using default text theme
 // avatar image now uses Image.network; removed cached_network_image usage
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'data/sync_service.dart';
+import 'hive/hive_service_manager.dart';
 import 'team_screen.dart';
 import 'app_settings.dart';
 import 'settings_screen.dart';
@@ -196,7 +196,6 @@ class _HomePageState extends State<HomePage> {
   Timer? _debounceTimer;
   final Set<dynamic> _expandedClients = {};
   String boutiqueName = '';
-  late final SyncService _syncService;
   StreamSubscription<ConnectivityResult>? _connSub;
   bool _isSyncing = false;
 
@@ -230,12 +229,20 @@ class _HomePageState extends State<HomePage> {
       }
     });
     
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (widget.ownerPhone.isNotEmpty) {
-        AppSettings().initForOwner(widget.ownerPhone);
+        await AppSettings().initForOwner(widget.ownerPhone);
         AppSettings().addListener(() {
           if (mounted) setState(() {});
         });
+        
+        // ✨ Initialize HiveServiceManager for offline-first sync
+        try {
+          await HiveServiceManager().initializeForOwner(widget.ownerPhone);
+          print('✅ HiveServiceManager initialized');
+        } catch (e) {
+          print('⚠️  HiveServiceManager init error: $e');
+        }
       }
     });
   }
@@ -248,11 +255,23 @@ class _HomePageState extends State<HomePage> {
     _searchFocus.dispose();
     _debounceTimer?.cancel();
     _connSub?.cancel();
+    
+    // ✨ Shutdown HiveServiceManager
+    _shutdownHive();
+    
     super.dispose();
+  }
+  
+  Future<void> _shutdownHive() async {
+    try {
+      await HiveServiceManager().shutdown();
+      print('✅ HiveServiceManager shutdown');
+    } catch (e) {
+      print('⚠️  HiveServiceManager shutdown error: $e');
+    }
   }
 
   Future<void> _startConnectivityListener() async {
-    _syncService = SyncService();
     try {
       final conn = await Connectivity().checkConnectivity();
       if (conn != ConnectivityResult.none) {
@@ -608,15 +627,25 @@ class _HomePageState extends State<HomePage> {
     if (_isSyncing) return;
     setState(() => _isSyncing = true);
     try {
-      final ok = await _syncService.sync(ownerPhone: widget.ownerPhone);
-      if (ok) {
-        await fetchClients();
-        await fetchDebts();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Synchronisation terminée')),
-          );
-        }
+      // ✨ Use HiveServiceManager for automatic sync with offline support
+      final token = AppSettings().authToken;
+      await HiveServiceManager().syncNow(widget.ownerPhone, authToken: token);
+      
+      // Refresh UI data from cache
+      await fetchClients();
+      await fetchDebts();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Synchronisation terminée')),
+        );
+      }
+    } catch (e) {
+      print('❌ Sync error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur sync: $e')),
+        );
       }
     } finally {
       if (mounted) setState(() => _isSyncing = false);
@@ -2348,7 +2377,7 @@ final choice = await showModalBottomSheet<String>(
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black;
     final textColorSecondary = isDark ? Colors.white70 : Colors.black54;
-    final borderColor = isDark ? Colors.white24 : Colors.black26;
+    final borderColor = isDark ? const Color.fromARGB(255, 0, 0, 0) : const Color.fromARGB(0, 0, 0, 0);
 
     return RefreshIndicator(
       onRefresh: () async => await fetchClients(),
@@ -2442,7 +2471,7 @@ final choice = await showModalBottomSheet<String>(
       barrierColor: Colors.black.withOpacity(0.5),
       builder: (ctx) {
         final isDark = Theme.of(context).brightness == Brightness.dark;
-        final bgColor = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+        final bgColor = isDark ? const Color.fromARGB(255, 0, 0, 5) : Colors.white;
         final textColor = isDark ? Colors.white : Colors.black;
         
         return Dialog(
@@ -2620,11 +2649,11 @@ final choice = await showModalBottomSheet<String>(
       barrierColor: Colors.black.withOpacity(0.5),
       builder: (ctx) {
         final isDark = Theme.of(context).brightness == Brightness.dark;
-        final bgColor = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+        final bgColor = isDark ? const Color.fromARGB(255, 1, 0, 3) : Colors.white;
         final textColor = isDark ? Colors.white : Colors.black;
         
         return Dialog(
-          backgroundColor: Colors.transparent,
+          backgroundColor: const Color.fromARGB(229, 0, 0, 0),
           child: Container(
             decoration: BoxDecoration(
               color: bgColor,
@@ -2747,10 +2776,10 @@ final choice = await showModalBottomSheet<String>(
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF312157).withOpacity(0.1),
+                              color: const Color.fromARGB(255, 74, 33, 87).withOpacity(0.1),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: const Color(0xFF312157).withOpacity(0.3),
+                                color: const Color.fromARGB(255, 60, 41, 103).withOpacity(0.3),
                                 width: 1,
                               ),
                             ),
@@ -2758,7 +2787,7 @@ final choice = await showModalBottomSheet<String>(
                               children: [
                                 const Icon(
                                   Icons.arrow_downward_rounded,
-                                  color: Color(0xFF312157),
+                                  color: Color.fromARGB(255, 85, 28, 104),
                                   size: 24,
                                 ),
                                 const SizedBox(height: 6),
@@ -2767,7 +2796,7 @@ final choice = await showModalBottomSheet<String>(
                                   style: const TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
-                                    color: Color(0xFF312157),
+                                    color: Color.fromARGB(255, 85, 28, 104),
                                   ),
                                 ),
                               ],
