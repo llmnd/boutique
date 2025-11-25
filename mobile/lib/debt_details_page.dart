@@ -89,6 +89,19 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> with TickerProviderSt
     return AppSettings().boutiqueModeEnabled ? 'CLIENT' : 'CONTACT';
   }
 
+  // 🆕 Fonction helper robuste pour extraire le nom du client
+  String _getClientName(dynamic client) {
+    if (client == null) return AppSettings().boutiqueModeEnabled ? 'Client' : 'Contact';
+    
+    final name = client['name'];
+    if (name != null && name is String && name.isNotEmpty && name != 'null') {
+      return name;
+    }
+    
+    // Fallback si pas de nom valide
+    return AppSettings().boutiqueModeEnabled ? 'Client' : 'Contact';
+  }
+
   // ✅ Conversion sécurisée des nombres
   double _parseDouble(dynamic value) {
     if (value == null) return 0.0;
@@ -319,7 +332,7 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> with TickerProviderSt
   Widget _buildClientAvatar() {
     final hasAvatar = _client?['avatar_url'] != null && 
                      _client!['avatar_url'].toString().isNotEmpty;
-    final clientName = _client?['name'] ?? _debt['client_name'] ?? (AppSettings().boutiqueModeEnabled ? 'Client' : 'Contact');
+    final clientName = _getClientName(_client);
     final initials = _getInitials(clientName);
     
     return Container(
@@ -894,7 +907,7 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> with TickerProviderSt
       );
 
       final history = _getMergedHistory();
-      final clientName = _client?['name'] ?? _debt['client_name'] ?? (AppSettings().boutiqueModeEnabled ? 'Client' : 'Contact');
+      final clientName = _getClientName(_client);
       final debtAmount = _parseDouble(_debt['amount']);
       final remaining = _calculateRemaining(_debt, payments);
       final debtType = _isLoan() ? 'Emprunt' : 'Prêt';
@@ -1550,7 +1563,7 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> with TickerProviderSt
     final dueDate = _parseDate(_debt['due_date']);
 
     // NOM DU CLIENT
-    final clientName = _client?['name'] ?? _debt['client_name'] ?? (AppSettings().boutiqueModeEnabled ? 'Client' : 'Contact');
+    final clientName = _getClientName(_client);
     
     // ✅ NOUVEAU : Déterminer le type
     final debtType = _debt['type'] ?? 'debt';

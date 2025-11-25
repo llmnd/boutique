@@ -100,7 +100,7 @@ class _MyAppState extends State<MyApp> {
     
     // Check if user has PIN configured
     final pinService = PinAuthOfflineService();
-    final hasPinSet = await pinService.hasPinSet();
+    final hasPinSet = await pinService.hasCachedCredentials();
     
     // Try to auto-login with token
     if (phone != null) {
@@ -157,7 +157,7 @@ class _MyAppState extends State<MyApp> {
     
     // Check if user has PIN configured
     final pinService = PinAuthOfflineService();
-    final hasPinSet = await pinService.hasPinSet();
+    final hasPinSet = await pinService.hasCachedCredentials();
     
     setState(() { 
       ownerPhone = phone; 
@@ -171,7 +171,7 @@ class _MyAppState extends State<MyApp> {
     final pinService = PinAuthOfflineService();
     
     // Check if user has a PIN set
-    final hasPinSet = await pinService.hasPinSet();
+    final hasPinSet = await pinService.hasCachedCredentials();
     
     // Only allow logout if user has a PIN
     // If no PIN, user stays logged in indefinitely
@@ -415,7 +415,33 @@ class _HomePageState extends State<HomePage> {
             await fetchDebts();
             if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${_getTermClientUp()} supprimé')));
           } else {
-            if (mounted) await showDialog(context: context, builder: (ctx) => AlertDialog(title: const Text('Erreur'), content: Text('Échec suppression: ${res.statusCode}\n${res.body}'), actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('OK'))]));
+            // Parse error message and provide friendly feedback
+            String errorMessage = 'Erreur lors de la suppression';
+            try {
+              final errorBody = json.decode(res.body);
+              if (errorBody['message'] != null) {
+                if (errorBody['message'].toString().contains('existing debt') || 
+                    errorBody['message'].toString().contains('dette') ||
+                    errorBody['message'].toString().contains('emprunt')) {
+                  errorMessage = 'Impossible de supprimer ce ${_getTermClient()} car il possède des dettes ou des emprunts associés.\n\nConseil: Vous pouvez d\'abord clôturer toutes les dettes/emprunts liés avant de le supprimer.';
+                } else {
+                  errorMessage = errorBody['message'].toString();
+                }
+              }
+            } catch (_) {
+              errorMessage = 'Erreur: ${res.statusCode}';
+            }
+            
+            if (mounted) {
+              await showDialog(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('⚠️ Suppression impossible'),
+                  content: Text(errorMessage),
+                  actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('D\'accord'))]
+                )
+              );
+            }
           }
         } catch (e) {
           if (mounted) await showDialog(context: context, builder: (ctx) => AlertDialog(title: const Text('Erreur réseau'), content: Text('$e'), actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('OK'))]));
@@ -1070,6 +1096,19 @@ double _clientTotalRemaining(dynamic clientId) {
     return AppSettings().boutiqueModeEnabled ? 'CLIENT' : 'CONTACT';
   }
 
+  // 🆕 Fonction helper robuste pour extraire le nom du client
+  String _getClientName(dynamic client) {
+    if (client == null) return AppSettings().boutiqueModeEnabled ? 'Client' : 'Contact';
+    
+    final name = client['name'];
+    if (name != null && name is String && name.isNotEmpty && name != 'null') {
+      return name;
+    }
+    
+    // Fallback si pas de nom valide
+    return AppSettings().boutiqueModeEnabled ? 'Client' : 'Contact';
+  }
+
   // Build client avatar similar to DebtDetailsPage
   String _getInitials(String name) {
     final parts = name.split(' ');
@@ -1096,8 +1135,8 @@ double _clientTotalRemaining(dynamic clientId) {
 
   Widget _buildClientAvatarWidget(dynamic client, double size) {
     final hasAvatar = client != null && client['avatar_url'] != null && client['avatar_url'].toString().isNotEmpty;
-    final clientName = client != null ? (client['name'] ?? (AppSettings().boutiqueModeEnabled ? 'Client' : 'Contact')) : (AppSettings().boutiqueModeEnabled ? 'Client' : 'Contact');
-    final initials = _getInitials(clientName.toString());
+    final clientName = _getClientName(client);
+    final initials = _getInitials(clientName);
 
     return Container(
       width: size,
@@ -2562,7 +2601,7 @@ final choice = await showModalBottomSheet<String>(
               contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
               leading: _buildClientAvatarWidget(c, 40),
               title: Text(
-                c['name'].toString().toUpperCase(),
+                _getClientName(c).toUpperCase(),
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
@@ -2601,7 +2640,33 @@ final choice = await showModalBottomSheet<String>(
                           await fetchDebts();
                           if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${_getTermClientUp()} supprimé')));
                         } else {
-                          if (mounted) await showDialog(context: context, builder: (ctx) => AlertDialog(title: const Text('Erreur'), content: Text('Échec suppression: ${res.statusCode}\n${res.body}'), actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('OK'))]));
+                          // Parse error message and provide friendly feedback
+                          String errorMessage = 'Erreur lors de la suppression';
+                          try {
+                            final errorBody = json.decode(res.body);
+                            if (errorBody['message'] != null) {
+                              if (errorBody['message'].toString().contains('existing debt') || 
+                                  errorBody['message'].toString().contains('dette') ||
+                                  errorBody['message'].toString().contains('emprunt')) {
+                                errorMessage = 'Impossible de supprimer ce ${_getTermClient()} car il possède des dettes ou des emprunts associés.\n\nConseil: Vous pouvez d\'abord clôturer toutes les dettes/emprunts liés avant de le supprimer.';
+                              } else {
+                                errorMessage = errorBody['message'].toString();
+                              }
+                            }
+                          } catch (_) {
+                            errorMessage = 'Erreur: ${res.statusCode}';
+                          }
+                          
+                          if (mounted) {
+                            await showDialog(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text('⚠️ Suppression impossible'),
+                                content: Text(errorMessage),
+                                actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('D\'accord'))]
+                              )
+                            );
+                          }
                         }
                       } catch (e) {
                         if (mounted) await showDialog(context: context, builder: (ctx) => AlertDialog(title: const Text('Erreur réseau'), content: Text('$e'), actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('OK'))]));
