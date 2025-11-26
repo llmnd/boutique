@@ -694,7 +694,7 @@ class _DebtActionSheetState extends State<DebtActionSheet> {
                             ),
                           ),
                         );
-                      }).toList(),
+                      }),
 
                     const SizedBox(height: 24),
 

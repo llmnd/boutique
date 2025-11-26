@@ -92,7 +92,7 @@ class _TeamScreenState extends State<TeamScreen> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: role,
+                initialValue: role,
                 items: const [
                   DropdownMenuItem(
                     value: 'clerk',
@@ -193,7 +193,7 @@ class _TeamScreenState extends State<TeamScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceVariant,
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
@@ -269,7 +269,7 @@ class _TeamScreenState extends State<TeamScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceVariant,
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Column(
@@ -389,7 +389,7 @@ class _TeamScreenState extends State<TeamScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(40),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceVariant,
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Column(
@@ -495,7 +495,7 @@ class _TeamScreenState extends State<TeamScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(40),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceVariant,
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Column(
@@ -601,7 +601,7 @@ class _TeamScreenState extends State<TeamScreen> {
                   Container(
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surfaceVariant,
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(

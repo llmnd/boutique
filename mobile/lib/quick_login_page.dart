@@ -406,7 +406,7 @@ class _QuickLoginPageState extends State<QuickLoginPage> {
     final colors = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: colors.background,
+      backgroundColor: colors.surface,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 48),
@@ -423,7 +423,7 @@ class _QuickLoginPageState extends State<QuickLoginPage> {
                       Text('Borr', style: TextStyle(
                         fontSize: 32,
                         fontWeight: FontWeight.w300,
-                        color: colors.onBackground,
+                        color: colors.onSurface,
                         letterSpacing: -1,
                         height: 1.1,
                       )),
@@ -445,7 +445,7 @@ class _QuickLoginPageState extends State<QuickLoginPage> {
                         fontSize: 11,
                         fontWeight: FontWeight.w500,
                         letterSpacing: 1.5,
-                        color: colors.onBackground.withOpacity(0.5),
+                        color: colors.onSurface.withOpacity(0.5),
                       )),
                       const SizedBox(height: 12),
                       TextField(
@@ -453,7 +453,7 @@ class _QuickLoginPageState extends State<QuickLoginPage> {
                         keyboardType: TextInputType.phone,
                         style: TextStyle(
                           fontSize: 16, 
-                          color: colors.onBackground,
+                          color: colors.onSurface,
                           fontWeight: FontWeight.w300,
                           letterSpacing: 0.5,
                         ),
@@ -527,7 +527,7 @@ class _QuickLoginPageState extends State<QuickLoginPage> {
                   Text('Aucune information bancaire requise', style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w300,
-                    color: colors.onBackground.withOpacity(0.3),
+                    color: colors.onSurface.withOpacity(0.3),
                     letterSpacing: 0.5,
                   )),
                 ],

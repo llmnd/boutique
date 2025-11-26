@@ -176,7 +176,7 @@ class _AddPaymentPageState extends State<AddPaymentPage> {
     final borderColor = isDark ? Colors.white24 : Colors.black26;
 
     return Scaffold(
-      backgroundColor: colors.background,
+      backgroundColor: colors.surface,
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,

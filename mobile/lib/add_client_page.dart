@@ -155,7 +155,7 @@ class _AddClientPageState extends State<AddClientPage> {
     final borderColor = isDark ? Colors.white24 : Colors.black26;
     
     return Scaffold(
-      backgroundColor: colors.background,
+      backgroundColor: colors.surface,
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,

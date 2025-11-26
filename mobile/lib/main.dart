@@ -1525,6 +1525,145 @@ final choice = await showModalBottomSheet<String>(
     if (res == true) await fetchDebts();
   }
 
+  // ✨ NOUVEAU : Modifier un client
+  Future<void> _editClient(dynamic client) async {
+    if (client == null) return;
+    
+    final nameCtl = TextEditingController(text: client['name'] ?? '');
+    final numberCtl = TextEditingController(text: client['client_number']?.toString() ?? '');
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final textColorSecondary = isDark ? Colors.white70 : Colors.black54;
+    
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dlg) => Dialog(
+        backgroundColor: Theme.of(context).cardColor,
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 400),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'MODIFIER ${_getTermClientUp()}',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.8,
+                  color: textColor,
+                ),
+              ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: nameCtl,
+                style: TextStyle(color: textColor),
+                decoration: InputDecoration(
+                  labelText: 'Nom',
+                  labelStyle: TextStyle(color: textColorSecondary),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: textColorSecondary.withOpacity(0.2)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: Theme.of(context).colorScheme.primary),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: numberCtl,
+                style: TextStyle(color: textColor),
+                decoration: InputDecoration(
+                  labelText: 'Numéro',
+                  labelStyle: TextStyle(color: textColorSecondary),
+                  hintText: 'Optionnel',
+                  hintStyle: TextStyle(color: textColorSecondary.withOpacity(0.5)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: textColorSecondary.withOpacity(0.2)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: Theme.of(context).colorScheme.primary),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(dlg).pop(false),
+                    child: Text('Annuler', style: TextStyle(color: textColorSecondary)),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton(
+                    onPressed: () => Navigator.of(dlg).pop(true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                    ),
+                    child: const Text('Enregistrer'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (ok == true && nameCtl.text.trim().isNotEmpty) {
+      try {
+        final headers = {
+          'Content-Type': 'application/json',
+          if (widget.ownerPhone.isNotEmpty) 'x-owner': widget.ownerPhone
+        };
+        final body = {
+          'name': nameCtl.text.trim(),
+          'client_number': numberCtl.text.trim().isNotEmpty ? numberCtl.text.trim() : null,
+        };
+
+        final res = await http.put(
+          Uri.parse('$apiHost/clients/${client['id']}'),
+          headers: headers,
+          body: json.encode(body),
+        ).timeout(const Duration(seconds: 8));
+
+        if (res.statusCode == 200) {
+          await fetchClients();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('${_getTermClientUp()} modifié avec succès')),
+            );
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Erreur lors de la modification')),
+            );
+          }
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Erreur: $e')),
+          );
+        }
+      }
+    }
+  }
+
   Widget _buildDebtsTab() {
     // ✅ NOUVEAU : Calculer les PRÊTS et EMPRUNTS séparément
     final totalPrets = _calculateTotalPrets();
@@ -2266,7 +2405,7 @@ final choice = await showModalBottomSheet<String>(
                           ],
                         ),
                       );
-                    }).toList(),
+                    }),
                     const SizedBox(height: 20),
                   ],
                 );
@@ -2466,6 +2605,9 @@ final choice = await showModalBottomSheet<String>(
                                   const SnackBar(content: Text('Emprunt créé')),
                                 );
                               }
+                            } else if (v == 'edit') {
+                              // ✨ NOUVEAU : Modifier le client
+                              await _editClient(client);
                             }
                           },
                           itemBuilder: (context) => [
@@ -2497,6 +2639,17 @@ final choice = await showModalBottomSheet<String>(
                                   const Icon(Icons.account_balance_wallet, size: 18, color: Color.fromARGB(255, 141, 47, 219)),
                                   const SizedBox(width: 8),
                                   Text('Créer un emprunt', style: TextStyle(color: textColor)),
+                                ],
+                              ),
+                            ),
+                            // ✨ NOUVEAU : Option modifier
+                            PopupMenuItem<String>(
+                              value: 'edit',
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.edit, size: 18, color: Colors.blue),
+                                  const SizedBox(width: 8),
+                                  Text('Modifier', style: TextStyle(color: textColor)),
                                 ],
                               ),
                             ),
@@ -2623,7 +2776,7 @@ final choice = await showModalBottomSheet<String>(
                             ),
                           ),
                         );
-                      }).toList(),
+                      }),
                     ],
                   ),
               ],
@@ -3173,7 +3326,7 @@ final choice = await showModalBottomSheet<String>(
     final textColorSecondary = isDark ? Colors.white70 : Colors.black54;
 
     return Scaffold(
-      backgroundColor: colors.background,
+      backgroundColor: colors.surface,
       appBar: PreferredSize(
         preferredSize: Size.fromHeight(_isSearching ? 130 : 60),
         child: Container(

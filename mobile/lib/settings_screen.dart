@@ -531,12 +531,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final hasIncompleteProfile = _settings.firstName?.isEmpty == true || _settings.lastName?.isEmpty == true;
 
     return Scaffold(
-      backgroundColor: colors.background,
+      backgroundColor: colors.surface,
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
         leading: IconButton(
-          icon: Icon(Icons.close, color: colors.onBackground, size: 24),
+          icon: Icon(Icons.close, color: colors.onSurface, size: 24),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
@@ -544,7 +544,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w600,
-            color: colors.onBackground,
+            color: colors.onSurface,
           ),
         ),
         centerTitle: true,

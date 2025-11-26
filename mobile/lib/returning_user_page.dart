@@ -223,7 +223,7 @@ class _ReturningUserPageState extends State<ReturningUserPage> {
     final textColor = isDark ? Colors.white : Colors.black;
 
     return Scaffold(
-      backgroundColor: colors.background,
+      backgroundColor: colors.surface,
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,

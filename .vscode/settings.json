@@ -1,3 +1,4 @@
 {
-    "terminal.integrated.suggest.selectionMode": "always"
+    "terminal.integrated.suggest.selectionMode": "always",
+    "java.configuration.updateBuildConfiguration": "interactive"
 }

@@ -247,9 +247,9 @@ class SyncStatusWidget extends StatefulWidget {
   final String ownerPhone;
 
   const SyncStatusWidget({
-    Key? key,
+    super.key,
     required this.ownerPhone,
-  }) : super(key: key);
+  });
 
   @override
   State<SyncStatusWidget> createState() => _SyncStatusWidgetState();

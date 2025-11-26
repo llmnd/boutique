@@ -431,7 +431,7 @@ class _PinAuthPageState extends State<PinAuthPage> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: colors.background,
+      backgroundColor: colors.surface,
       body: SafeArea(
         child: Column(
           children: [

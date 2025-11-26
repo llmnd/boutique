@@ -547,7 +547,7 @@ class _AddLoanPageState extends State<AddLoanPage> with TickerProviderStateMixin
     const subtleAccent = Color.fromARGB(255, 141, 47, 219); // Violet pour les emprunts
 
     return Scaffold(
-      backgroundColor: colors.background,
+      backgroundColor: colors.surface,
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(140),
         child: Container(

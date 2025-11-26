@@ -1330,7 +1330,7 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> with TickerProviderSt
                         ],
                       ),
                     );
-                  }).toList(),
+                  }),
 
                   pw.SizedBox(height: 20),
                   pw.Divider(color: PdfColors.blue400, thickness: 1.5),
@@ -1570,7 +1570,7 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> with TickerProviderSt
     final isPret = debtType == 'debt';
 
     return Scaffold(
-      backgroundColor: colors.background,
+      backgroundColor: colors.surface,
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,

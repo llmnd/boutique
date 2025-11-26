@@ -30,6 +30,7 @@ dependencies:
   pdf: ^3.10.0
   share_plus: ^7.2.0
 
+  crypto: any
 dev_dependencies:
   flutter_test:
     sdk: flutter
