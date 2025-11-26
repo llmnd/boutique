@@ -1902,26 +1902,14 @@ final choice = await showModalBottomSheet<String>(
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                                   decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                      colors: _debtSubTab == 'prets'
-                                          ? [
-                                              Colors.orange.withOpacity(0.20),
-                                              Colors.orange.withOpacity(0.10),
-                                            ]
-                                          : [
-                                              Colors.orange.withOpacity(0.08),
-                                              Colors.orange.withOpacity(0.03),
-                                            ],
+                                    border: Border(
+                                      bottom: BorderSide(
+                                        color: _debtSubTab == 'prets' 
+                                          ? Colors.orange
+                                          : Colors.transparent,
+                                        width: _debtSubTab == 'prets' ? 2 : 0,
+                                      ),
                                     ),
-                                    border: Border.all(
-                                      color: _debtSubTab == 'prets'
-                                          ? Colors.orange.withOpacity(0.6)
-                                          : Colors.orange.withOpacity(0.2),
-                                      width: _debtSubTab == 'prets' ? 1.5 : 0.5,
-                                    ),
-                                    borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.center,
@@ -1940,31 +1928,6 @@ final choice = await showModalBottomSheet<String>(
                                               letterSpacing: 1,
                                             ),
                                           ),
-                                          if (_debtSubTab == 'prets')
-                                            const Padding(
-                                              padding: EdgeInsets.only(left: 4),
-                                              child: Icon(Icons.check_circle, size: 12, color: Colors.orange),
-                                            ),
-                                          // ✨ Petit indicateur pulse subtle quand actif
-                                          if (_debtSubTab == 'prets' && totalPrets > 0)
-                                            Padding(
-                                              padding: const EdgeInsets.only(left: 6),
-                                              child: ScaleTransition(
-                                                scale: Tween(begin: 0.8, end: 1.2)
-                                                    .animate(CurvedAnimation(
-                                                      parent: _pulseController,
-                                                      curve: Curves.easeInOut,
-                                                    )),
-                                                child: Container(
-                                                  width: 6,
-                                                  height: 6,
-                                                  decoration: BoxDecoration(
-                                                    shape: BoxShape.circle,
-                                                    color: Colors.orange.withOpacity(0.6),
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
                                         ],
                                       ),
                                       const SizedBox(height: 4),
@@ -1997,26 +1960,14 @@ final choice = await showModalBottomSheet<String>(
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                                   decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                      colors: _debtSubTab == 'emprunts'
-                                          ? [
-                                              Colors.purple.withOpacity(0.20),
-                                              Colors.purple.withOpacity(0.10),
-                                            ]
-                                          : [
-                                              Colors.purple.withOpacity(0.08),
-                                              Colors.purple.withOpacity(0.03),
-                                            ],
+                                    border: Border(
+                                      bottom: BorderSide(
+                                        color: _debtSubTab == 'emprunts' 
+                                          ? Colors.purple
+                                          : Colors.transparent,
+                                        width: _debtSubTab == 'emprunts' ? 2 : 0,
+                                      ),
                                     ),
-                                    border: Border.all(
-                                      color: _debtSubTab == 'emprunts'
-                                          ? Colors.purple.withOpacity(0.6)
-                                          : Colors.purple.withOpacity(0.2),
-                                      width: _debtSubTab == 'emprunts' ? 1.5 : 0.5,
-                                    ),
-                                    borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.center,
@@ -2035,31 +1986,6 @@ final choice = await showModalBottomSheet<String>(
                                               letterSpacing: 1,
                                             ),
                                           ),
-                                          if (_debtSubTab == 'emprunts')
-                                            const Padding(
-                                              padding: EdgeInsets.only(left: 4),
-                                              child: Icon(Icons.check_circle, size: 12, color: Colors.purple),
-                                            ),
-                                          // ✨ Petit indicateur pulse subtle quand actif
-                                          if (_debtSubTab == 'emprunts' && totalEmprunts > 0)
-                                            Padding(
-                                              padding: const EdgeInsets.only(left: 6),
-                                              child: ScaleTransition(
-                                                scale: Tween(begin: 0.8, end: 1.2)
-                                                    .animate(CurvedAnimation(
-                                                      parent: _pulseController,
-                                                      curve: Curves.easeInOut,
-                                                    )),
-                                                child: Container(
-                                                  width: 6,
-                                                  height: 6,
-                                                  decoration: BoxDecoration(
-                                                    shape: BoxShape.circle,
-                                                    color: Colors.purple.withOpacity(0.6),
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
                                         ],
                                       ),
                                       const SizedBox(height: 4),

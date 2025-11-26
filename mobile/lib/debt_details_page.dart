@@ -85,10 +85,6 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> with TickerProviderSt
     return AppSettings().boutiqueModeEnabled ? 'client' : 'contact';
   }
 
-  String _getTermClientUp() {
-    return AppSettings().boutiqueModeEnabled ? 'CLIENT' : 'CONTACT';
-  }
-
   // 🆕 Fonction helper robuste pour extraire le nom du client
   String _getClientName(dynamic client) {
     if (client == null) return AppSettings().boutiqueModeEnabled ? 'Client' : 'Contact';
@@ -751,19 +747,6 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> with TickerProviderSt
     // Trier par date décroissante (plus récent en premier)
     merged.sort((a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime));
     return merged;
-  }
-
-  // ✅ NOUVELLE FONCTION : Générer le label de solde personnalisé avec nom du client
-  String _buildBalanceLabel(String clientName, bool isPret, double remaining) {
-    if (remaining <= 0) {
-      return 'TERMINÉ ✓';
-    } else if (isPret) {
-      // Prêt : le client doit payer
-      return '${clientName.toUpperCase()} VOUS DOIT';
-    } else {
-      // Emprunt : je dois payer
-      return 'VOUS DEVEZ À ${clientName.toUpperCase()}';
-    }
   }
 
   // ✅ NOUVELLE FONCTION : Générer la liste d'historique unifié
@@ -1680,38 +1663,49 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> with TickerProviderSt
                 ),
                 const SizedBox(height: 20),
                 
-                // ✅ AFFICHAGE DU RESTE - PRINCIPAL ET AMÉLIORÉ avec nom du client
+                // ✅ AFFICHAGE ÉLÉGANT ET MINIMALISTE DU SOLDE
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
                   decoration: BoxDecoration(
-                    border: Border.all(
-                      color: remaining <= 0 ? Colors.green : Colors.red,
-                      width: 2,
+                    color: remaining <= 0 
+                        ? Colors.green.withOpacity(0.08)
+                        : Colors.red.withOpacity(0.08),
+                    border: Border(
+                      bottom: BorderSide(
+                        color: remaining <= 0 ? Colors.green : Colors.red,
+                        width: 1.5,
+                      ),
                     ),
-                    borderRadius: BorderRadius.circular(12),
-                    color: (remaining <= 0 ? Colors.green : Colors.red).withOpacity(0.05),
                   ),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
+                      // Label du solde
                       Text(
-                        _buildBalanceLabel(clientName, isPret, remaining),
+                        remaining <= 0 
+                            ? 'TRANSACTION COMPLÉTÉE ✓'
+                            : (isPret 
+                                ? '$clientName vous doit'
+                                : 'Vous devez à $clientName'),
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 11,
                           fontWeight: FontWeight.w600,
-                          letterSpacing: 1.5,
+                          letterSpacing: 0.8,
                           color: remaining <= 0 ? Colors.green : Colors.red,
                         ),
                         textAlign: TextAlign.center,
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 10),
+                      // Montant principal
                       Text(
                         _fmtAmount(remaining.abs()),
                         style: TextStyle(
-                          fontSize: 44,
-                          fontWeight: FontWeight.w700,
+                          fontSize: 48,
+                          fontWeight: FontWeight.w300,
                           color: remaining <= 0 ? Colors.green : Colors.red,
                           height: 1,
+                          letterSpacing: -1,
                         ),
                       ),
                     ],
@@ -1789,56 +1783,74 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> with TickerProviderSt
           
           const SizedBox(height: 24),
 
-          // ✅ Actions rapides - SPÉCIALISÉES
+          // ✅ Actions rapides - ÉLÉGANTES AVEC FOND SUBTIL
           Row(
             children: [
               Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: remaining <= 0 ? null : _addPayment,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: remaining <= 0 ? Colors.grey : (isPret ? Colors.orange : Colors.purple),
-                    side: BorderSide(
-                      color: (remaining <= 0 ? Colors.grey : (isPret ? Colors.orange : Colors.purple)).withOpacity(0.5),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: remaining <= 0 
+                      ? Colors.grey.withOpacity(0.08)
+                      : (isPret ? Colors.orange.withOpacity(0.08) : Colors.purple.withOpacity(0.08)),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: TextButton.icon(
+                    onPressed: remaining <= 0 ? null : _addPayment,
+                    style: TextButton.styleFrom(
+                      foregroundColor: remaining <= 0 
+                        ? Colors.grey.withOpacity(0.5)
+                        : (isPret ? Colors.orange : Colors.purple),
+                      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                      visualDensity: VisualDensity.standard,
                     ),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  icon: Icon(
-                    isPret ? Icons.account_balance_wallet : Icons.payment,
-                    size: 18,
-                    color: remaining <= 0 ? Colors.grey : (isPret ? Colors.orange : Colors.purple),
-                  ),
-                  label: Text(
-                    _getPaymentButtonLabel().toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: remaining <= 0 ? Colors.grey : (isPret ? Colors.orange : Colors.purple),
+                    icon: Icon(
+                      isPret ? Icons.account_balance_wallet : Icons.payment,
+                      size: 18,
+                      color: remaining <= 0 
+                        ? Colors.grey.withOpacity(0.5)
+                        : (isPret ? Colors.orange : Colors.purple),
+                    ),
+                    label: Text(
+                      _getPaymentButtonLabel(),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.3,
+                        color: remaining <= 0 
+                          ? Colors.grey.withOpacity(0.5)
+                          : (isPret ? Colors.orange : Colors.purple),
+                      ),
                     ),
                   ),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _addAddition,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.green,
-                    side: BorderSide(
-                      color: Colors.green.withOpacity(0.5),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: TextButton.icon(
+                    onPressed: _addAddition,
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.green,
+                      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                      visualDensity: VisualDensity.standard,
                     ),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  icon: const Icon(
-                    Icons.add_circle_outline,
-                    size: 18,
-                    color: Colors.green,
-                  ),
-                  label: Text(
-                    _getAddButtonLabel().toUpperCase(),
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                    icon: const Icon(
+                      Icons.add_circle_outline,
+                      size: 18,
                       color: Colors.green,
+                    ),
+                    label: Text(
+                      _getAddButtonLabel(),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.3,
+                        color: Colors.green,
+                      ),
                     ),
                   ),
                 ),
