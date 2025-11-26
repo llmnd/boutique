@@ -1957,28 +1957,61 @@ final choice = await showModalBottomSheet<String>(
                   ),
                 ),
                 const SizedBox(height: 20),
-                // Filtre par montant
+                // 💎 Filtre par montant - Badge minimaliste
                 GestureDetector(
                   onTap: () => setState(() => _showAmountFilter = !_showAmountFilter),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        _showAmountFilter ? Icons.filter_list : Icons.filter_list_off,
-                        size: 16,
-                        color: textColorSecondary,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'FILTRER PAR MONTANT',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w500,
-                          letterSpacing: 0.5,
-                          color: textColorSecondary,
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: _showAmountFilter
+                            ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
+                            : Colors.transparent,
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.primary.withOpacity(
+                            _showAmountFilter ? 0.3 : 0.1,
+                          ),
+                          width: 0.8,
                         ),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    ],
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _showAmountFilter ? Icons.unfold_less : Icons.unfold_more,
+                            size: 14,
+                            color: Theme.of(context).colorScheme.primary.withOpacity(
+                              _showAmountFilter ? 0.8 : 0.4,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'MONTANT',
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.6,
+                              color: Theme.of(context).colorScheme.primary.withOpacity(
+                                _showAmountFilter ? 0.8 : 0.5,
+                              ),
+                            ),
+                          ),
+                          if (_minDebtAmount > 0 || _maxDebtAmount > 0)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 6),
+                              child: Container(
+                                width: 4,
+                                height: 4,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Theme.of(context).colorScheme.primary.withOpacity(0.7),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
                 if (_showAmountFilter) ...[
@@ -2045,19 +2078,36 @@ final choice = await showModalBottomSheet<String>(
                   ),
                 ],
                 const SizedBox(height: 20),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text(
-                    'RÉCENT',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1.2,
-                      color: textColorSecondary,
+                // 💎 Section RÉCENT - Ligne minimaliste élégante
+                Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        height: 0.5,
+                        color: borderColor,
+                      ),
                     ),
-                  ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Text(
+                        'RÉCENT',
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.3,
+                          color: textColorSecondary,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Container(
+                        height: 0.5,
+                        color: borderColor,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 12),
               ],
             );
           }
