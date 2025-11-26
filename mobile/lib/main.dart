@@ -250,6 +250,7 @@ class _HomePageState extends State<HomePage> {
   bool _isSearching = false;
   bool _showTotalCard = true;
   bool _showAmountFilter = false;
+  bool _showUnpaidDetails = false;
   double _minDebtAmount = 0.0;
   double _maxDebtAmount = 0.0;
   final TextEditingController _searchController = TextEditingController();
@@ -1523,10 +1524,28 @@ final choice = await showModalBottomSheet<String>(
     
     // Ancien calcul pour compatibilité
     final netBalance = _calculateNetBalance();
-    int totalUnpaid = debts.where((d) {
-      final remaining = (d['remaining'] as double?) ?? 0.0;
-      return remaining > 0;
-    }).length;
+    
+    // ✅ NOUVEAU : Calculer les impayés de manière dynamique selon _debtSubTab
+    int totalUnpaid = 0;
+    if (_debtSubTab == 'prets') {
+      totalUnpaid = debts.where((d) {
+        if ((d['type'] ?? 'debt') != 'debt') return false;
+        final remaining = (d['remaining'] as double?) ?? 0.0;
+        return remaining > 0;
+      }).length;
+    } else if (_debtSubTab == 'emprunts') {
+      totalUnpaid = debts.where((d) {
+        if ((d['type'] ?? 'debt') != 'loan') return false;
+        final remaining = (d['remaining'] as double?) ?? 0.0;
+        return remaining > 0;
+      }).length;
+    } else {
+      // Affichage total (tous les types)
+      totalUnpaid = debts.where((d) {
+        final remaining = (d['remaining'] as double?) ?? 0.0;
+        return remaining > 0;
+      }).length;
+    }
 
     // Filtrer les dettes par plage de montant si applicable
     List filteredDebts = debts;
@@ -1882,88 +1901,74 @@ final choice = await showModalBottomSheet<String>(
                           ],
                         ),
                         const SizedBox(height: 12),
-                        // 💎 DETTES IMPAYÉES - Carte compacte
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: totalUnpaid > 0
-                                  ? [
-                                      Colors.red.withOpacity(0.08),
-                                      Colors.red.withOpacity(0.03),
-                                    ]
-                                  : [
-                                      Colors.green.withOpacity(0.08),
-                                      Colors.green.withOpacity(0.03),
-                                    ],
+                        // 💎 DETTES IMPAYÉES - Carte compacte et cliquable (minimaliste)
+                        GestureDetector(
+                          onTap: () => setState(() => _showUnpaidDetails = !_showUnpaidDetails),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: totalUnpaid > 0
+                                    ? [
+                                        Colors.red.withOpacity(0.08),
+                                        Colors.red.withOpacity(0.03),
+                                      ]
+                                    : [
+                                        Colors.green.withOpacity(0.08),
+                                        Colors.green.withOpacity(0.03),
+                                      ],
+                              ),
+                              border: Border.all(
+                                color: totalUnpaid > 0
+                                    ? Colors.red.withOpacity(0.2)
+                                    : Colors.green.withOpacity(0.2),
+                                width: 0.5,
+                              ),
+                              borderRadius: BorderRadius.circular(8),
                             ),
-                            border: Border.all(
-                              color: totalUnpaid > 0
-                                  ? Colors.red.withOpacity(0.2)
-                                  : Colors.green.withOpacity(0.2),
-                              width: 0.5,
-                            ),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(
-                                    totalUnpaid > 0
-                                        ? Icons.warning_amber_rounded
-                                        : Icons.check_circle_outline,
-                                    size: 14,
-                                    color: totalUnpaid > 0 ? Colors.red : Colors.green,
-                                  ),
-                                  const SizedBox(width: 9),
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'IMPAYÉES',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w400,
-                                          letterSpacing: 0.8,
-                                          color: textColorSecondary,
-                                        ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      totalUnpaid > 0
+                                          ? Icons.warning_amber_rounded
+                                          : Icons.check_circle_outline,
+                                      size: 14,
+                                      color: totalUnpaid > 0 ? Colors.red : Colors.green,
+                                    ),
+                                    const SizedBox(width: 9),
+                                    Text(
+                                      'IMPAYÉES',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w400,
+                                        letterSpacing: 0.8,
+                                        color: textColorSecondary,
                                       ),
-                                      if (totalUnpaid > 0)
-                                        Text(
-                                          'à recouvrer',
-                                          style: TextStyle(
-                                            fontSize: 9,
-                                            color: textColorSecondary,
-                                            fontWeight: FontWeight.w400,
-                                          ),
-                                        )
-                                      else
-                                        Text(
-                                          'tout payé',
-                                          style: TextStyle(
-                                            fontSize: 9,
-                                            color: textColorSecondary,
-                                            fontWeight: FontWeight.w400,
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                              Text(
-                                '$totalUnpaid',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                  color: totalUnpaid > 0 ? Colors.red : Colors.green,
-                                  letterSpacing: 0.5,
+                                    ),
+                                  ],
                                 ),
-                              ),
-                            ],
+                                _showUnpaidDetails
+                                    ? Text(
+                                        '$totalUnpaid',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w700,
+                                          color: totalUnpaid > 0 ? Colors.red : Colors.green,
+                                          letterSpacing: 0.5,
+                                        ),
+                                      )
+                                    : Icon(
+                                        Icons.expand_more,
+                                        size: 16,
+                                        color: totalUnpaid > 0 ? Colors.red.withOpacity(0.5) : Colors.green.withOpacity(0.5),
+                                      ),
+                              ],
+                            ),
                           ),
                         ),
                       ],

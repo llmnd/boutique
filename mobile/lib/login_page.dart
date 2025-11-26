@@ -54,32 +54,17 @@ class _LoginPageState extends State<LoginPage> {
   Future _doLogin() async {
     setState(() => loading = true);
     try {
-      // Check if user has a stored token (device is already registered)
-      final offlineService = PinAuthOfflineService();
-      final storedToken = await offlineService.getToken();
-      final storedUserId = await offlineService.getUserId();
-      
-      if (storedToken == null || storedUserId == null) {
-        setState(() => loading = false);
-        await _showMinimalDialog('Erreur', 'Aucun compte trouvé sur cet appareil. Veuillez vous inscrire d\'abord.');
-        return;
-      }
-      
-      // Use stored token to identify user and verify PIN
       final body = {'pin': pin};
       final res = await http.post(
           Uri.parse('$apiHost/auth/login-pin'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $storedToken',
-          },
+          headers: {'Content-Type': 'application/json'},
           body: json.encode(body)).timeout(const Duration(seconds: 8));
       
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
         final id = data['id'] is int ? data['id'] as int : (data['id'] is String ? int.tryParse(data['id']) : null);
         
-        // Update auth token and settings
+        // Save auth token
         if (data['auth_token'] != null) {
           final settings = AppSettings();
           await settings.initForOwner(data['phone']);
@@ -89,8 +74,8 @@ class _LoginPageState extends State<LoginPage> {
           }
         }
         
-        // Update cached token
-        await offlineService.cacheCredentials(
+        // Cache offline
+        await PinAuthOfflineService().cacheCredentials(
           pin: pin,
           token: data['auth_token'],
           phone: data['phone'],
@@ -101,16 +86,15 @@ class _LoginPageState extends State<LoginPage> {
         );
         
         widget.onLogin(data['phone'], data['shop_name'], id, data['first_name'], data['last_name'], data['boutique_mode_enabled'] as bool?);
-      } else if (res.statusCode == 401) {
-        setState(() => loading = false);
-        await _showMinimalDialog('Erreur', 'PIN incorrect');
       } else {
-        setState(() => loading = false);
-        await _showMinimalDialog('Erreur', 'Connexion échouée: ${res.statusCode}');
+        setState(() => pin = '');
+        await _showMinimalDialog('Erreur', 'PIN incorrect. Réessayez.');
       }
     } catch (e) {
-      setState(() => loading = false);
+      setState(() => pin = '');
       await _showMinimalDialog('Erreur', 'Erreur connexion: $e');
+    } finally {
+      setState(() => loading = false);
     }
   }
 
@@ -312,7 +296,6 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black;
     final textColorSecondary = isDark ? Colors.white70 : Colors.black54;
@@ -321,7 +304,7 @@ class _LoginPageState extends State<LoginPage> {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-        backgroundColor: colors.background,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(
           elevation: 0,
           backgroundColor: Colors.transparent,
@@ -339,28 +322,28 @@ class _LoginPageState extends State<LoginPage> {
             children: [
               // Login Tab
               SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
                 child: Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 400),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 40),
                         Container(
                           width: 64,
                           height: 64,
                           decoration: BoxDecoration(color: isDark ? Colors.white : Colors.black),
                           child: Icon(Icons.receipt_long, color: isDark ? Colors.black : Colors.white, size: 32),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 24),
                         Text('GESTION DE DETTES', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 2, color: textColor)),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 8),
                         Text('Connexion PIN', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w300, color: textColorSecondary)),
-                        const SizedBox(height: 32),
+                        const SizedBox(height: 60),
 
                         Text('ENTREZ VOTRE PIN', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1.5, color: textColorSecondary)),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 32),
 
                         // PIN input field with system keyboard
                         TextField(
@@ -373,7 +356,7 @@ class _LoginPageState extends State<LoginPage> {
                             border: const OutlineInputBorder(borderSide: BorderSide(width: 2)),
                             enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: borderColor, width: 2)),
                             focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: textColor, width: 2)),
-                            contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+                            contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
                             counterText: '',
                             suffixIcon: IconButton(
                               icon: Icon(showPin ? Icons.visibility : Icons.visibility_off, size: 20),
@@ -387,7 +370,9 @@ class _LoginPageState extends State<LoginPage> {
                             }
                           },
                         ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 40),
+
+                        const SizedBox(height: 80),
                       ],
                     ),
                   ),
@@ -396,16 +381,16 @@ class _LoginPageState extends State<LoginPage> {
 
               // Signup Tab
               SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
                 child: Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 400),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 20),
                         Text('INSCRIPTION', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1.5, color: textColorSecondary)),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 24),
 
                         TextField(
                           controller: firstNameCtl,
@@ -415,10 +400,10 @@ class _LoginPageState extends State<LoginPage> {
                             border: const OutlineInputBorder(borderSide: BorderSide(width: 0.5)),
                             enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: borderColor, width: 0.5)),
                             focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: textColor, width: 1)),
-                            contentPadding: const EdgeInsets.all(12),
+                            contentPadding: const EdgeInsets.all(16),
                           ),
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 16),
 
                         TextField(
                           controller: lastNameCtl,
@@ -428,10 +413,10 @@ class _LoginPageState extends State<LoginPage> {
                             border: const OutlineInputBorder(borderSide: BorderSide(width: 0.5)),
                             enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: borderColor, width: 0.5)),
                             focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: textColor, width: 1)),
-                            contentPadding: const EdgeInsets.all(12),
+                            contentPadding: const EdgeInsets.all(16),
                           ),
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 16),
 
                         TextField(
                           controller: phoneCtl,
@@ -442,10 +427,10 @@ class _LoginPageState extends State<LoginPage> {
                             border: const OutlineInputBorder(borderSide: BorderSide(width: 0.5)),
                             enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: borderColor, width: 0.5)),
                             focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: textColor, width: 1)),
-                            contentPadding: const EdgeInsets.all(12),
+                            contentPadding: const EdgeInsets.all(16),
                           ),
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 16),
 
                         TextField(
                           controller: shopNameCtl,
@@ -455,13 +440,13 @@ class _LoginPageState extends State<LoginPage> {
                             border: const OutlineInputBorder(borderSide: BorderSide(width: 0.5)),
                             enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: borderColor, width: 0.5)),
                             focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: textColor, width: 1)),
-                            contentPadding: const EdgeInsets.all(12),
+                            contentPadding: const EdgeInsets.all(16),
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 24),
 
                         Text('CHOISIR UN PIN', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1.5, color: textColorSecondary)),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 16),
 
                         // PIN input field for signup
                         TextField(
@@ -474,7 +459,7 @@ class _LoginPageState extends State<LoginPage> {
                             border: const OutlineInputBorder(borderSide: BorderSide(width: 2)),
                             enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: borderColor, width: 2)),
                             focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: textColor, width: 2)),
-                            contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+                            contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
                             counterText: '',
                             suffixIcon: IconButton(
                               icon: Icon(showPin ? Icons.visibility : Icons.visibility_off, size: 20),
@@ -485,7 +470,7 @@ class _LoginPageState extends State<LoginPage> {
                             setState(() => pin = value);
                           },
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 24),
 
                         SizedBox(
                           width: double.infinity,
@@ -497,7 +482,7 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
 
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 80),
                       ],
                     ),
                   ),
