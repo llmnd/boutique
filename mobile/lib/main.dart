@@ -1901,73 +1901,54 @@ final choice = await showModalBottomSheet<String>(
                           ],
                         ),
                         const SizedBox(height: 12),
-                        // 💎 DETTES IMPAYÉES - Carte compacte et cliquable (minimaliste)
+                        // 💎 DETTES IMPAYÉES - Petit cercle minimaliste centré
                         GestureDetector(
                           onTap: () => setState(() => _showUnpaidDetails = !_showUnpaidDetails),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: totalUnpaid > 0
-                                    ? [
-                                        Colors.red.withOpacity(0.08),
-                                        Colors.red.withOpacity(0.03),
-                                      ]
-                                    : [
-                                        Colors.green.withOpacity(0.08),
-                                        Colors.green.withOpacity(0.03),
-                                      ],
-                              ),
-                              border: Border.all(
+                          child: Center(
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              width: _showUnpaidDetails ? 60 : 48,
+                              height: _showUnpaidDetails ? 60 : 48,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
                                 color: totalUnpaid > 0
-                                    ? Colors.red.withOpacity(0.2)
-                                    : Colors.green.withOpacity(0.2),
-                                width: 0.5,
-                              ),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Row(
-                                  children: [
-                                    Icon(
-                                      totalUnpaid > 0
-                                          ? Icons.warning_amber_rounded
-                                          : Icons.check_circle_outline,
-                                      size: 14,
-                                      color: totalUnpaid > 0 ? Colors.red : Colors.green,
-                                    ),
-                                    const SizedBox(width: 9),
-                                    Text(
-                                      'IMPAYÉES',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w400,
-                                        letterSpacing: 0.8,
-                                        color: textColorSecondary,
-                                      ),
-                                    ),
-                                  ],
+                                    ? Colors.red.withOpacity(0.08)
+                                    : Colors.green.withOpacity(0.08),
+                                border: Border.all(
+                                  color: totalUnpaid > 0
+                                      ? Colors.red.withOpacity(_showUnpaidDetails ? 0.4 : 0.15)
+                                      : Colors.green.withOpacity(_showUnpaidDetails ? 0.4 : 0.15),
+                                  width: _showUnpaidDetails ? 1.5 : 0.8,
                                 ),
-                                _showUnpaidDetails
+                                boxShadow: _showUnpaidDetails
+                                    ? [
+                                        BoxShadow(
+                                          color: (totalUnpaid > 0 ? Colors.red : Colors.green).withOpacity(0.1),
+                                          blurRadius: 12,
+                                          spreadRadius: 2,
+                                        ),
+                                      ]
+                                    : [],
+                              ),
+                              child: Center(
+                                child: _showUnpaidDetails
                                     ? Text(
                                         '$totalUnpaid',
                                         style: TextStyle(
-                                          fontSize: 16,
+                                          fontSize: 20,
                                           fontWeight: FontWeight.w700,
                                           color: totalUnpaid > 0 ? Colors.red : Colors.green,
                                           letterSpacing: 0.5,
                                         ),
                                       )
                                     : Icon(
-                                        Icons.expand_more,
-                                        size: 16,
-                                        color: totalUnpaid > 0 ? Colors.red.withOpacity(0.5) : Colors.green.withOpacity(0.5),
+                                        totalUnpaid > 0 ? Icons.warning_amber_rounded : Icons.check_circle,
+                                        size: 20,
+                                        color: totalUnpaid > 0
+                                            ? Colors.red.withOpacity(0.6)
+                                            : Colors.green.withOpacity(0.6),
                                       ),
-                              ],
+                              ),
                             ),
                           ),
                         ),
