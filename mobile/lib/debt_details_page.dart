@@ -1879,16 +1879,16 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> with TickerProviderSt
                           (_debt['created_by'] != null && _debt['created_by'] != widget.ownerPhone);
     
     // Si créée par quelqu'un d'autre, afficher le nom + numéro du créancier
-    if (createdByOther && _debt['display_creditor_name'] != null) {
+    if (createdByOther) {
       final displayCreditorName = _debt['display_creditor_name']?.toString() ?? '';  // ✅ Priorité: client.name > creditor_name
-      final creditorPhone = _debt['creditor_phone']?.toString() ?? '';  // ✅ Le numéro du créancier
+      final creditorPhone = _debt['creditor_phone']?.toString() ?? _debt['creditor']?.toString() ?? '';  // ✅ Le numéro du créancier
       displayName = displayCreditorName.isNotEmpty 
           ? displayCreditorName
           : (creditorPhone.isNotEmpty ? creditorPhone : clientName);
-      displayPhone = creditorPhone.isNotEmpty ? creditorPhone : null;
+      displayPhone = creditorPhone.isNotEmpty ? creditorPhone : null;  // ✅ TOUJOURS afficher le numéro du créancier
     } else {
-      // Afficher le phone du client aussi
-      displayPhone = _client?['phone'];
+      // ✅ CORRIGÉ : Chercher le numéro du client dans _client ou _debt
+      displayPhone = _client?['client_number'] ?? _debt['client_number'] ?? _debt['client_phone'] ?? _debt['phone'];
     }
     
     // ✅ NOUVEAU : Déterminer le type
@@ -2042,30 +2042,31 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> with TickerProviderSt
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          // ✅ NUMÉRO EN BAS - minimaliste et discret
-                          if (displayPhone != null && displayPhone.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 3),
-                              child: Text(
-                                displayPhone,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: textColorSecondary.withOpacity(0.65),
-                                  fontWeight: FontWeight.w400,
-                                  letterSpacing: 0.2,
+                          // ✅ NUMÉRO EN BAS - beau et lisible (toujours affiché)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).colorScheme.primary.withOpacity(0.08),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color: Theme.of(context).colorScheme.primary.withOpacity(0.15),
+                                  width: 0.5,
                                 ),
                               ),
-                            )
-                          else
-                            Text(
-                              _getTermClient(),
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w400,
-                                color: textColorSecondary.withOpacity(0.7),
+                              child: Text(
+                                displayPhone ?? _getTermClient(),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Theme.of(context).colorScheme.primary,
+                                  fontWeight: FontWeight.w500,
+                                  letterSpacing: 0.3,
+                                  fontFamily: 'monospace',
+                                ),
                               ),
                             ),
-                        ],
+                          )],
                       ),
                     ),
                     if (dueDate != null) _buildDueDateWidget(dueDate),

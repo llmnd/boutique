@@ -2395,7 +2395,7 @@ final choice = await showModalBottomSheet<String>(
           } else {
             // C'est une dette normale, afficher le nom du client
             clientName = client != null ? client['name'] : (clientId == 'unknown' ? (AppSettings().boutiqueModeEnabled ? 'Clients inconnus' : 'Contacts inconnus') : '${AppSettings().boutiqueModeEnabled ? 'Client' : 'Contact'} $clientId');
-            clientPhone = client?['phone']; // ✅ Stocker le phone client aussi
+            clientPhone = client?['client_number'] ?? client?['phone']; // ✅ CORRIGÉ
           }
 
           // Calculer le total : ne prendre que la dette la plus récente pour le couple (client,type)
@@ -2448,30 +2448,54 @@ final choice = await showModalBottomSheet<String>(
                                   letterSpacing: 0.3,
                                 ),
                               ),
-                              // ✅ NUMÉRO EN BAS - minimaliste et discret
+                              // ✅ NUMÉRO EN BAS - beau et lisible avec badge
                               if (clientPhone != null && clientPhone.isNotEmpty)
                                 Padding(
-                                  padding: const EdgeInsets.only(top: 2),
-                                  child: Text(
-                                    clientPhone,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: textColorSecondary.withOpacity(0.65),
-                                      fontWeight: FontWeight.w400,
-                                      letterSpacing: 0.3,
+                                  padding: const EdgeInsets.only(top: 6),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                    decoration: BoxDecoration(
+                                      color: Theme.of(context).colorScheme.primary.withOpacity(0.08),
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(
+                                        color: Theme.of(context).colorScheme.primary.withOpacity(0.15),
+                                        width: 0.5,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      clientPhone,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Theme.of(context).colorScheme.primary,
+                                        fontWeight: FontWeight.w500,
+                                        letterSpacing: 0.3,
+                                        fontFamily: 'monospace',
+                                      ),
                                     ),
                                   ),
                                 )
                               else if (client != null && (client['phone'] ?? '').toString().isNotEmpty)
                                 Padding(
-                                  padding: const EdgeInsets.only(top: 2),
-                                  child: Text(
-                                    client['phone'].toString(),
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: textColorSecondary.withOpacity(0.65),
-                                      fontWeight: FontWeight.w400,
-                                      letterSpacing: 0.3,
+                                  padding: const EdgeInsets.only(top: 6),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                    decoration: BoxDecoration(
+                                      color: Theme.of(context).colorScheme.primary.withOpacity(0.08),
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(
+                                        color: Theme.of(context).colorScheme.primary.withOpacity(0.15),
+                                        width: 0.5,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      client['phone'].toString(),
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Theme.of(context).colorScheme.primary,
+                                        fontWeight: FontWeight.w500,
+                                        letterSpacing: 0.3,
+                                        fontFamily: 'monospace',
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -2487,7 +2511,7 @@ final choice = await showModalBottomSheet<String>(
                               final bool isLoan = txType == 'loan'; // Vérifier le type par composant
                               
                               return Text(
-                                isLoan ? 'JE DOIS' : (clientOwe ? 'JE DOIS' : 'À PERCEVOIR'),
+                                isLoan ? 'je dois' : (clientOwe ? 'je dois' : 'à percevoir'),
                                 style: TextStyle(
                                   fontSize: 10,
                                   color: textColorSecondary,

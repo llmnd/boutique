@@ -136,6 +136,9 @@ class HiveDebt {
   final String? syncError;
   final int localVersion;
   final int serverVersion;
+  final double totalAdditions;  // ✅ NOUVEAU: Total des additions
+  final double totalDebt;       // ✅ NOUVEAU: amount + totalAdditions
+  final double remaining;       // ✅ NOUVEAU: (amount + totalAdditions) - totalPayments
 
   HiveDebt({
     required this.id,
@@ -156,6 +159,9 @@ class HiveDebt {
     this.syncError,
     this.localVersion = 0,
     this.serverVersion = 0,
+    this.totalAdditions = 0.0,
+    this.totalDebt = 0.0,
+    this.remaining = 0.0,
   });
 
   factory HiveDebt.fromJson(Map<String, dynamic> json) => HiveDebt(
@@ -181,6 +187,9 @@ class HiveDebt {
         syncError: json['syncError'] as String?,
         localVersion: json['localVersion'] as int? ?? 0,
         serverVersion: json['serverVersion'] as int? ?? 0,
+        totalAdditions: _parseAmount(json['total_additions']),  // ✅ NOUVEAU
+        totalDebt: _parseAmount(json['total_debt']),            // ✅ NOUVEAU
+        remaining: _parseAmount(json['remaining']),              // ✅ NOUVEAU
       );
 
   Map<String, dynamic> toJson() => {
@@ -202,6 +211,9 @@ class HiveDebt {
         'syncError': syncError,
         'localVersion': localVersion,
         'serverVersion': serverVersion,
+        'total_additions': totalAdditions,  // ✅ NOUVEAU
+        'total_debt': totalDebt,            // ✅ NOUVEAU
+        'remaining': remaining,              // ✅ NOUVEAU
       };
 
   Map<String, dynamic> toServerJson() => {
@@ -240,6 +252,9 @@ class HiveDebt {
     String? syncError,
     int? localVersion,
     int? serverVersion,
+    double? totalAdditions,  // ✅ NOUVEAU
+    double? totalDebt,       // ✅ NOUVEAU
+    double? remaining,       // ✅ NOUVEAU
   }) =>
       HiveDebt(
         id: id ?? this.id,
@@ -260,6 +275,9 @@ class HiveDebt {
         syncError: syncError ?? this.syncError,
         localVersion: localVersion ?? this.localVersion,
         serverVersion: serverVersion ?? this.serverVersion,
+        totalAdditions: totalAdditions ?? this.totalAdditions,  // ✅ NOUVEAU
+        totalDebt: totalDebt ?? this.totalDebt,                // ✅ NOUVEAU
+        remaining: remaining ?? this.remaining,                // ✅ NOUVEAU
       );
 }
 

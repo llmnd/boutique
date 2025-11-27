@@ -110,92 +110,177 @@ class _AddDebtPageState extends State<AddDebtPage> with TickerProviderStateMixin
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black;
     final textColorSecondary = isDark ? Colors.white70 : Colors.black54;
+    final borderColor = isDark ? Colors.white24 : Colors.black26;
+    
+    // Charger les pays
+    List<Map<String, dynamic>> countries = [];
+    String? selectedCountryCode = '221'; // Défaut: Sénégal
+    bool loadingCountries = true;
+    
+    try {
+      final res = await http.get(Uri.parse('$apiHost/countries')).timeout(const Duration(seconds: 5));
+      if (res.statusCode == 200) {
+        final List<dynamic> data = json.decode(res.body);
+        countries = List<Map<String, dynamic>>.from(
+          data.map((item) => {
+            'code': item['code'],
+            'country_name': item['country_name'],
+            'flag_emoji': item['flag_emoji'] ?? '',
+          })
+        );
+      }
+    } catch (_) {}
+    loadingCountries = false;
     
     final ok = await showDialog<bool>(
       context: context,
       barrierColor: Colors.black87,
-      builder: (c) => Dialog(
-        backgroundColor: Theme.of(context).cardColor,
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 500),
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'NOUVEAU CLIENT',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 1.5,
-                  color: textColor,
+      builder: (c) => StatefulBuilder(
+        builder: (c, setStateDialog) => Dialog(
+          backgroundColor: Theme.of(context).cardColor,
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 500),
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'NOUVEAU CLIENT',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1.5,
+                    color: textColor,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: nameCtl,
-                autofocus: true,
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w400, color: textColor),
-                decoration: InputDecoration(
-                  labelText: 'Nom du client',
-                  labelStyle: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: textColorSecondary),
-                  border: const OutlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: nameCtl,
+                  autofocus: true,
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w400, color: textColor),
+                  decoration: InputDecoration(
+                    labelText: 'Nom du client',
+                    labelStyle: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: textColorSecondary),
+                    border: const OutlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: numberCtl,
-                keyboardType: TextInputType.phone,
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w400, color: textColor),
-                decoration: InputDecoration(
-                  labelText: 'Numéro de téléphone (optionnel)',
-                  labelStyle: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: textColorSecondary),
-                  border: const OutlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: numberCtl,
+                  keyboardType: TextInputType.phone,
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w400, color: textColor),
+                  decoration: InputDecoration(
+                    labelText: 'Numéro de téléphone (optionnel)',
+                    labelStyle: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: textColorSecondary),
+                    border: const OutlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.of(c).pop(false),
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                      foregroundColor: textColorSecondary,
-                    ),
-                    child: const Text(
-                      'ANNULER',
+                const SizedBox(height: 16),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'PAYS',
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
-                        letterSpacing: 1,
+                        letterSpacing: 1.5,
+                        color: textColorSecondary,
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  ElevatedButton(
-                    onPressed: () => Navigator.of(c).pop(true),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: isDark ? Colors.white : Colors.black,
-                      foregroundColor: isDark ? Colors.black : Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
-                    ),
-                    child: const Text(
-                      'AJOUTER',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 1,
+                    const SizedBox(height: 12),
+                    if (loadingCountries)
+                      Container(
+                        height: 56,
+                        alignment: Alignment.center,
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 1.5,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                      )
+                    else if (countries.isNotEmpty)
+                      DropdownButtonFormField<String>(
+                        value: selectedCountryCode,
+                        isExpanded: true,
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(borderSide: BorderSide(color: borderColor, width: 0.5)),
+                          enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: borderColor, width: 0.5)),
+                          focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: textColor, width: 1)),
+                          contentPadding: const EdgeInsets.all(16),
+                        ),
+                        items: countries.map((country) {
+                          return DropdownMenuItem<String>(
+                            value: country['code'],
+                            child: Row(
+                              children: [
+                                Text(country['flag_emoji'] ?? '', style: const TextStyle(fontSize: 18)),
+                                const SizedBox(width: 12),
+                                Text(
+                                  '${country['country_name']} (+${country['code']})',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: textColor,
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setStateDialog(() => selectedCountryCode = value);
+                        },
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(c).pop(false),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        foregroundColor: textColorSecondary,
+                      ),
+                      child: const Text(
+                        'ANNULER',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1,
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                    const SizedBox(width: 12),
+                    ElevatedButton(
+                      onPressed: () => Navigator.of(c).pop(true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isDark ? Colors.white : Colors.black,
+                        foregroundColor: isDark ? Colors.black : Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
+                      ),
+                      child: const Text(
+                        'AJOUTER',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -203,7 +288,15 @@ class _AddDebtPageState extends State<AddDebtPage> with TickerProviderStateMixin
 
     if (ok == true && nameCtl.text.trim().isNotEmpty) {
       try {
-        final body = {'client_number': numberCtl.text.trim(), 'name': nameCtl.text.trim()};
+        final phoneNumber = numberCtl.text.trim();
+        final normalizedPhone = phoneNumber.replaceAll(RegExp(r'[^0-9]'), '');
+        final fullPhone = normalizedPhone.isNotEmpty ? '+$selectedCountryCode$normalizedPhone' : '';
+        
+        final body = {
+          'client_number': fullPhone,
+          'name': nameCtl.text.trim(),
+          if (selectedCountryCode != null) 'country_code': selectedCountryCode,
+        };
         final headers = {'Content-Type': 'application/json', if (widget.ownerPhone.isNotEmpty) 'x-owner': widget.ownerPhone};
         setState(() => _saving = true);
         final res = await http.post(Uri.parse('$apiHost/clients'), headers: headers, body: json.encode(body)).timeout(const Duration(seconds: 8));
