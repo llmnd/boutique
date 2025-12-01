@@ -24,6 +24,7 @@ import 'add_client_page.dart';
 import 'add_addition_page.dart';
 import 'debt_details_page.dart';
 import 'theme.dart';
+import 'utils/methods_extraction.dart';
 
 // Theme colors (deprecated - use Theme.of(context) instead)
 const Color kBackground = Color(0xFF0F1113);
@@ -383,7 +384,7 @@ bool _hasConnection(List<ConnectivityResult> results) {
           ),
           SimpleDialogOption(
             onPressed: () => Navigator.of(ctx).pop('delete'),
-            child: Row(children: [const Icon(Icons.delete, color: Colors.red), const SizedBox(width: 12), Text('Supprimer ${_getTermClient()}', style: TextStyle(color: textColor))]),
+            child: Row(children: [const Icon(Icons.delete, color: Colors.red), const SizedBox(width: 12), Text('Supprimer ${HomePageMethods.getTermClient()}', style: TextStyle(color: textColor))]),
           ),
         ],
       ),
@@ -411,8 +412,8 @@ bool _hasConnection(List<ConnectivityResult> results) {
       final confirm = await showDialog<bool>(
         context: context,
         builder: (c) => AlertDialog(
-          title: Text('Supprimer le ${_getTermClient()}'),
-          content: Text('Voulez-vous vraiment supprimer ${client['name'] ?? 'ce ${_getTermClient()}'} ?'),
+          title: Text('Supprimer le ${HomePageMethods.getTermClient()}'),
+          content: Text('Voulez-vous vraiment supprimer ${client['name'] ?? 'ce ${HomePageMethods.getTermClient()}'} ?'),
           actions: [
             TextButton(onPressed: () => Navigator.of(c).pop(false), child: const Text('Annuler')),
             ElevatedButton(onPressed: () => Navigator.of(c).pop(true), style: ElevatedButton.styleFrom(backgroundColor: Colors.red), child: const Text('Supprimer')),
@@ -427,7 +428,7 @@ bool _hasConnection(List<ConnectivityResult> results) {
           if (res.statusCode == 200) {
             await fetchClients();
             await fetchDebts();
-            if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${_getTermClientUp()} supprimé')));
+            if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${HomePageMethods.getTermClientUp()} supprimé')));
           } else {
             // Parse error message and provide friendly feedback
             String errorMessage = 'Erreur lors de la suppression';
@@ -437,7 +438,7 @@ bool _hasConnection(List<ConnectivityResult> results) {
                 if (errorBody['message'].toString().contains('existing debt') || 
                     errorBody['message'].toString().contains('dette') ||
                     errorBody['message'].toString().contains('emprunt')) {
-                  errorMessage = 'Impossible de supprimer ce ${_getTermClient()} car il possède des dettes ou des emprunts associés.\n\nConseil: Vous pouvez d\'abord clôturer toutes les dettes/emprunts liés avant de le supprimer.';
+                  errorMessage = 'Impossible de supprimer ce ${HomePageMethods.getTermClient()} car il possède des dettes ou des emprunts associés.\n\nConseil: Vous pouvez d\'abord clôturer toutes les dettes/emprunts liés avant de le supprimer.';
                 } else {
                   errorMessage = errorBody['message'].toString();
                 }
@@ -942,7 +943,7 @@ bool _hasConnection(List<ConnectivityResult> results) {
                   // Calculer et stocker le total des additions
                   double totalAdditions = 0.0;
                   for (final addition in additionsList) {
-                    totalAdditions += _parseDouble(addition['amount']);
+                    totalAdditions += HomePageMethods.parseDouble(addition['amount']);
                   }
                   debt['total_additions'] = totalAdditions;
                 }
@@ -951,7 +952,7 @@ bool _hasConnection(List<ConnectivityResult> results) {
                 if (responses[0].statusCode == 200) {
                   final paymentsList = json.decode(responses[0].body) as List;
                   // Recalculer remaining : (amount + additions) - payments
-                  final newRem = _calculateRemainingFromPayments(debt, paymentsList);
+                  final newRem = HomePageMethods.calculateRemainingFromPayments(debt, paymentsList);
                   debt['remaining'] = newRem;
                 }
               } catch (_) {
@@ -979,206 +980,6 @@ bool _hasConnection(List<ConnectivityResult> results) {
     return c != null ? c['name'] : null;
   }
 
-  // Retourne un score temporel pour une dette (ms depuis epoch) pour choisir la plus récente
-  double _tsForDebt(dynamic debt) {
-    if (debt == null) return 0.0;
-    final List<String> tsFields = ['updated_at', 'added_at', 'created_at', 'createdAt', 'date'];
-    for (final f in tsFields) {
-      final v = debt[f];
-      if (v == null) continue;
-      if (v is String) {
-        final dt = DateTime.tryParse(v);
-        if (dt != null) return dt.millisecondsSinceEpoch.toDouble();
-      } else if (v is int) {
-        return v.toDouble();
-      } else if (v is double) {
-        return v;
-      }
-    }
-
-    final idv = debt['id'];
-    if (idv is int) return idv.toDouble();
-    if (idv is String) return double.tryParse(idv) ?? 0.0;
-    return 0.0;
-  }
-
-  // Parse double safely (copié/consistent with DebtDetailsPage)
-  double _parseDouble(dynamic value) {
-    if (value == null) return 0.0;
-    if (value is double) return value;
-    if (value is int) return value.toDouble();
-    if (value is String) {
-      return double.tryParse(value.replaceAll(' ', '')) ?? 0.0;
-    }
-    return 0.0;
-  }
-
-  // Calculer remaining exactement comme dans DebtDetailsPage: (amount + additions) - sum(payments)
-  double _calculateRemainingFromPayments(Map debt, List paymentList) {
-    try {
-      // ✅ CORRIGÉ : Inclure les additions dans le calcul
-      final baseAmount = _parseDouble(debt['amount']);
-      final totalAdditions = _parseDouble(debt['total_additions'] ?? 0.0);
-      final totalDebtAmount = baseAmount + totalAdditions;
-      
-      double totalPaid = 0.0;
-      for (final payment in paymentList) {
-        totalPaid += _parseDouble(payment['amount']);
-      }
-      return (totalDebtAmount - totalPaid).clamp(0.0, double.infinity);
-    } catch (_) {
-      return 0.0;
-    }
-  }
-
-  // ✅ CORRIGÉ : Calcul du total par client
- // ✅ CORRIGÉ : Calcul du total par client
-double _clientTotalRemaining(dynamic clientId) {
-  // Ne pas additionner plusieurs enregistrements potentiellement dupliqués.
-  // Prendre la dette la plus récente pour ce client.
-  final clientDebts = debts.where((d) => d != null && d['client_id'] == clientId).toList();
-  if (clientDebts.isEmpty) return 0.0;
-  
-  // Avoid reduce entirely to prevent type issues - use a simple loop instead
-  dynamic latest = clientDebts[0];
-  double latestTs = _tsForDebt(latest);
-  
-  for (int i = 1; i < clientDebts.length; i++) {
-    final current = clientDebts[i];
-    final currentTs = _tsForDebt(current);
-    if (currentTs >= latestTs) {
-      latest = current;
-      latestTs = currentTs;
-    }
-  }
-  
-  return ((latest['remaining'] as num?)?.toDouble() ?? 0.0);
-}
-
-  // ✅ CORRIGÉ : Calcul du total général
-  // ✅ NOUVEAU : Calcul du solde net basé sur balance (universel)
-  double _calculateNetBalance() {
-    double totalToCollect = 0.0;   
-    double totalToPay = 0.0;     
-    
-    for (final d in debts) {
-      if (d == null) continue;
-      
-      // Récupérer balance ou remaining, en gérant les types (String ou double)
-      double balance = 0.0;
-      final balanceValue = d['balance'] ?? d['remaining'];
-      
-      if (balanceValue is String) {
-        balance = double.tryParse(balanceValue.toString().replaceAll(' ', '')) ?? 0.0;
-      } else if (balanceValue is double) {
-        balance = balanceValue;
-      } else if (balanceValue is int) {
-        balance = balanceValue.toDouble();
-      }
-      
-      // Déterminer le type initial
-      final type = d['type'] ?? 'debt';
-      
-      // Pour les PRÊTS (type='debt'): balance positive = à percevoir
-      if (type == 'debt') {
-        if (balance > 0) {
-          totalToCollect += balance;
-        } else if (balance < 0) {
-          totalToPay += balance.abs();
-        }
-      } 
-      // Pour les EMPRUNTS (type='loan'): balance positive = on doit payer
-      else if (type == 'loan') {
-        if (balance > 0) {
-          totalToPay += balance;
-        } else if (balance < 0) {
-          totalToCollect += balance.abs();
-        }
-      }
-    }
-    
-    return totalToCollect - totalToPay;  // Positif = à recevoir, Négatif = à payer
-  }
-
-  // ✅ NOUVEAU : Calculer le total des PRÊTS
-  double _calculateTotalPrets() {
-    double total = 0.0;
-    for (final d in debts) {
-      if (d == null) continue;
-      if ((d['type'] ?? 'debt') != 'debt') continue; // Seulement les prêts
-      
-      final remaining = (d['remaining'] as double?) ?? 0.0;
-      if (remaining > 0) total += remaining;
-    }
-    return total;
-  }
-
-  // ✅ NOUVEAU : Calculer le total des EMPRUNTS
-  double _calculateTotalEmprunts() {
-    double total = 0.0;
-    for (final d in debts) {
-      if (d == null) continue;
-      if ((d['type'] ?? 'debt') != 'loan') continue; // Seulement les emprunts
-      
-      final remaining = (d['remaining'] as double?) ?? 0.0;
-      if (remaining > 0) total += remaining;
-    }
-    return total;
-  }
-
-  // 🆕 Fonction helper pour déterminer le terme "Client" ou "Contact"
-  String _getTermClient() {
-    return AppSettings().boutiqueModeEnabled ? 'client' : 'contact';
-  }
-
-  String _getTermClientUp() {
-    return AppSettings().boutiqueModeEnabled ? 'CLIENT' : 'CONTACT';
-  }
-
-  // 🆕 Fonction helper robuste pour extraire le nom du client
-  String _getClientName(dynamic client) {
-    if (client == null) return AppSettings().boutiqueModeEnabled ? 'Client' : 'Contact';
-    
-    final name = client['name'];
-    if (name != null && name is String && name.isNotEmpty && name != 'null') {
-      return name;
-    }
-    
-    // Fallback si pas de nom valide
-    return AppSettings().boutiqueModeEnabled ? 'Client' : 'Contact';
-  }
-
-  // Build client avatar similar to DebtDetailsPage
-  String _getInitials(String name) {
-    final parts = name.split(' ');
-    if (parts.length >= 2) {
-      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    } else if (name.isNotEmpty) {
-      return name.substring(0, 1).toUpperCase();
-    }
-    return 'C';
-  }
-
-  // ✅ NOUVEAU : Générer une couleur stable et subtile basée sur le nom du client
-  Color _getAvatarColor(dynamic client) {
-    final clientName = _getClientName(client);
-    final hash = clientName.hashCode;
-    
-    // Palette de couleurs subtiles et minimalistes
-    const colors = [
-      Color(0xFF6B5B95),  // Violet subtil
-      Color(0xFF88A86C),  // Vert sage
-      Color(0xFF9B8B7E),  // Taupe
-      Color(0xFF7B9DBE),  // Bleu gris
-      Color(0xFFA69B84),  // Beige
-      Color(0xFF8B7F9A),  // Lavande
-      Color(0xFF7F9F9D),  // Teal subtil
-      Color(0xFF9B8B70),  // Ocre
-    ];
-    
-    return colors[hash.abs() % colors.length];
-  }
-
   Widget _buildInitialsAvatar(String initials, double size) {
     return Center(
       child: Icon(
@@ -1193,9 +994,9 @@ double _clientTotalRemaining(dynamic clientId) {
 
   Widget _buildClientAvatarWidget(dynamic client, double size) {
     final hasAvatar = client != null && client['avatar_url'] != null && client['avatar_url'].toString().isNotEmpty;
-    final clientName = _getClientName(client);
-    final initials = _getInitials(clientName);
-    final avatarColor = _getAvatarColor(client);
+    final clientName = HomePageMethods.getClientName(client);
+    final initials = HomePageMethods.getInitials(clientName);
+    final avatarColor = HomePageMethods.getAvatarColor(client);
 
     return Container(
       width: size,
@@ -1270,7 +1071,7 @@ double _clientTotalRemaining(dynamic clientId) {
           ),
           const SizedBox(height: 16),
           Text(
-            'Aucun ${_getTermClient()}',
+            'Aucun ${HomePageMethods.getTermClient()}',
             style: TextStyle(
               fontSize: 17,
               fontWeight: FontWeight.w600,
@@ -1368,46 +1169,6 @@ double _clientTotalRemaining(dynamic clientId) {
       }
       return;
     }
-    Widget actionCard({
-  required bool isDark,
-  required IconData icon,
-  required Color color,
-  required String title,
-  required String subtitle,
-}) {
-  return Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: isDark ? Colors.black : Colors.white,
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(
-        color: color.withOpacity(0.3),
-        width: 1,
-      ),
-    ),
-    child: Row(
-      children: [
-        Icon(icon, size: 24, color: color),
-        const SizedBox(width: 16),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title,
-                style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : Colors.black)),
-            const SizedBox(height: 4),
-            Text(subtitle,
-                style: TextStyle(
-                    fontSize: 12,
-                    color: isDark ? Colors.grey.shade400 : Colors.grey)),
-          ],
-        ),
-      ],
-    ),
-  );
-}
 
 final choice = await showModalBottomSheet<String>(
   context: context,
@@ -1597,7 +1358,7 @@ final choice = await showModalBottomSheet<String>(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'MODIFIER ${_getTermClientUp()}',
+                'MODIFIER ${HomePageMethods.getTermClientUp()}',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
@@ -1694,7 +1455,7 @@ final choice = await showModalBottomSheet<String>(
           await fetchClients();
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('${_getTermClientUp()} modifié avec succès')),
+              SnackBar(content: Text('${HomePageMethods.getTermClientUp()} modifié avec succès')),
             );
           }
         } else {
@@ -1716,11 +1477,11 @@ final choice = await showModalBottomSheet<String>(
 
   Widget _buildDebtsTab() {
     // ✅ NOUVEAU : Calculer les PRÊTS et EMPRUNTS séparément
-    final totalPrets = _calculateTotalPrets();
-    final totalEmprunts = _calculateTotalEmprunts();
+    final totalPrets = HomePageMethods.calculateTotalPrets(debts);
+    final totalEmprunts = HomePageMethods.calculateTotalEmprunts(debts);
     
     // Ancien calcul pour compatibilité
-    final netBalance = _calculateNetBalance();
+    final netBalance = HomePageMethods.calculateNetBalance(debts);
     
     // ✅ NOUVEAU : Calculer les impayés de manière dynamique selon _debtSubTab
     int totalUnpaid = 0;
@@ -2278,7 +2039,7 @@ final choice = await showModalBottomSheet<String>(
                           const Icon(Icons.trending_down, size: 14, color: Colors.red),
                           const SizedBox(width: 8),
                           Text(
-                            '${_getTermClientUp()}S À RISQUE',
+                            '${HomePageMethods.getTermClientUp()}S À RISQUE',
                             style: TextStyle(
                               fontSize: 9,
                               fontWeight: FontWeight.w600,
@@ -2406,7 +2167,7 @@ final choice = await showModalBottomSheet<String>(
           // Calculer le total : ne prendre que la dette la plus récente pour le couple (client,type)
           double totalRemaining = 0.0;
           if (clientDebts.isNotEmpty) {
-            final latest = clientDebts.reduce((a, b) => _tsForDebt(b) >= _tsForDebt(a) ? b : a);
+            final latest = clientDebts.reduce((a, b) => HomePageMethods.tsForDebt(b) >= HomePageMethods.tsForDebt(a) ? b : a);
             totalRemaining = ((latest['remaining'] as num?)?.toDouble() ?? 0.0);
           }
 
@@ -2808,8 +2569,8 @@ final choice = await showModalBottomSheet<String>(
 
     filtered.sort((dynamic a, dynamic b) {
   if (a == null || b == null) return 0;
-  final ra = _clientTotalRemaining(a['id']);
-  final rb = _clientTotalRemaining(b['id']);
+  final ra = HomePageMethods.clientTotalRemaining(a['id'], debts);
+  final rb = HomePageMethods.clientTotalRemaining(b['id'], debts);
   final sa = ra > 0 ? 0 : 1;
   final sb = rb > 0 ? 0 : 1;
   if (sa != sb) return sa - sb;
@@ -2844,7 +2605,7 @@ final choice = await showModalBottomSheet<String>(
               contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
               leading: _buildClientAvatarWidget(c, 40),
               title: Text(
-                _getClientName(c).toUpperCase(),
+                HomePageMethods.getClientName(c).toUpperCase(),
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
@@ -2865,8 +2626,8 @@ final choice = await showModalBottomSheet<String>(
                     final confirm = await showDialog<bool>(
                       context: context,
                       builder: (ctx) => AlertDialog(
-                        title: Text('Supprimer le ${_getTermClient()}'),
-                        content: Text('Voulez-vous vraiment supprimer ${c['name'] ?? 'ce ${_getTermClient()}'} ?'),
+                        title: Text('Supprimer le ${HomePageMethods.getTermClient()}'),
+                        content: Text('Voulez-vous vraiment supprimer ${c['name'] ?? 'ce ${HomePageMethods.getTermClient()}'} ?'),
                         actions: [
                           TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Annuler')),
                           ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), style: ElevatedButton.styleFrom(backgroundColor: Colors.red), child: const Text('Supprimer')),
@@ -2881,7 +2642,7 @@ final choice = await showModalBottomSheet<String>(
                         if (res.statusCode == 200) {
                           await fetchClients();
                           await fetchDebts();
-                          if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${_getTermClientUp()} supprimé')));
+                          if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${HomePageMethods.getTermClientUp()} supprimé')));
                         } else {
                           // Parse error message and provide friendly feedback
                           String errorMessage = 'Erreur lors de la suppression';
@@ -2891,7 +2652,7 @@ final choice = await showModalBottomSheet<String>(
                               if (errorBody['message'].toString().contains('existing debt') || 
                                   errorBody['message'].toString().contains('dette') ||
                                   errorBody['message'].toString().contains('emprunt')) {
-                                errorMessage = 'Impossible de supprimer ce ${_getTermClient()} car il possède des dettes ou des emprunts associés.\n\nConseil: Vous pouvez d\'abord clôturer toutes les dettes/emprunts liés avant de le supprimer.';
+                                errorMessage = 'Impossible de supprimer ce ${HomePageMethods.getTermClient()} car il possède des dettes ou des emprunts associés.\n\nConseil: Vous pouvez d\'abord clôturer toutes les dettes/emprunts liés avant de le supprimer.';
                               } else {
                                 errorMessage = errorBody['message'].toString();
                               }
@@ -2924,7 +2685,7 @@ final choice = await showModalBottomSheet<String>(
                       children: [
                         const Icon(Icons.delete, size: 18, color: Colors.red),
                         const SizedBox(width: 8),
-                        Text('Supprimer ${_getTermClient()}', style: TextStyle(color: textColor)),
+                        Text('Supprimer ${HomePageMethods.getTermClient()}', style: TextStyle(color: textColor)),
                       ],
                     ),
                   ),
@@ -2971,7 +2732,7 @@ final choice = await showModalBottomSheet<String>(
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Ce ${_getTermClient()} n\'a aucune transaction.',
+                  'Ce ${HomePageMethods.getTermClient()} n\'a aucune transaction.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 14,
@@ -3149,7 +2910,7 @@ final choice = await showModalBottomSheet<String>(
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Ce ${_getTermClient()} a ${clientDebts.length} transactions.',
+                  'Ce ${HomePageMethods.getTermClient()} a ${clientDebts.length} transactions.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 14,
@@ -3167,11 +2928,11 @@ final choice = await showModalBottomSheet<String>(
                             Navigator.of(ctx).pop();
                             Future.delayed(const Duration(milliseconds: 300), () {
                               dynamic latestPret = prets[0];
-                              double latestTs = _tsForDebt(latestPret);
+                              double latestTs = HomePageMethods.tsForDebt(latestPret);
                               
                               for (int i = 1; i < prets.length; i++) {
                                 final current = prets[i];
-                                final currentTs = _tsForDebt(current);
+                                final currentTs = HomePageMethods.tsForDebt(current);
                                 if (currentTs >= latestTs) {
                                   latestPret = current;
                                   latestTs = currentTs;
@@ -3227,11 +2988,11 @@ final choice = await showModalBottomSheet<String>(
                             Navigator.of(ctx).pop();
                             Future.delayed(const Duration(milliseconds: 300), () {
                               dynamic latestEmprunt = emprunts[0];
-                              double latestTs = _tsForDebt(latestEmprunt);
+                              double latestTs = HomePageMethods.tsForDebt(latestEmprunt);
                               
                               for (int i = 1; i < emprunts.length; i++) {
                                 final current = emprunts[i];
-                                final currentTs = _tsForDebt(current);
+                                final currentTs = HomePageMethods.tsForDebt(current);
                                 if (currentTs >= latestTs) {
                                   latestEmprunt = current;
                                   latestTs = currentTs;
@@ -3625,7 +3386,7 @@ final choice = await showModalBottomSheet<String>(
                         children: [
                           Icon(Icons.people, size: 20, color: _tabIndex == 1 ? textColor : textColorSecondary),
                           const SizedBox(height: 4),
-                          Text(_getTermClientUp(), style: TextStyle(fontSize: 11, color: _tabIndex == 1 ? textColor : textColorSecondary)),
+                          Text(HomePageMethods.getTermClientUp(), style: TextStyle(fontSize: 11, color: _tabIndex == 1 ? textColor : textColorSecondary)),
                         ],
                       ),
                     ),
