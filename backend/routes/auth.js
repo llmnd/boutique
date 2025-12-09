@@ -19,7 +19,7 @@ function generateDeviceId() {
   return crypto.randomBytes(16).toString('hex');
 }
 
-// Quick register - only requires phone number, creates account instantly OR logs in if exists
+// Quick register - only requires phone number, creates account instantly
 // User can complete profile later in settings (name, lastname, PIN optional)
 router.post('/register-quick', async (req, res) => {
   const { phone, country_code, device_id } = req.body;
@@ -39,7 +39,7 @@ router.post('/register-quick', async (req, res) => {
       [fullPhone]
     );
     
-    // If account exists, handle login instead of signup
+    // If account exists, return login response (not error)
     if (existingOwner.rowCount > 0) {
       const owner = existingOwner.rows[0];
       
@@ -55,19 +55,19 @@ router.post('/register-quick', async (req, res) => {
           [authToken, tokenExpiresAt, device_id || generateDeviceId(), owner.id]
         );
         
-        console.log('Auto-login (quick-register) successful for phone (no PIN):', fullPhone);
-        return res.json(updateResult.rows[0]);
+        console.log('Auto-login (register-quick) successful for phone (no PIN):', fullPhone);
+        return res.status(201).json(updateResult.rows[0]);
       }
       
-      // If owner HAS a PIN, return flag indicating PIN is required
+      // If owner HAS a PIN, still return 201 but with pin_required flag so app can ask for PIN
       const tempToken = generateToken();
       await pool.query(
         'UPDATE owners SET temp_token=$1 WHERE id=$2',
         [tempToken, owner.id]
       );
       
-      console.log('PIN verification required (quick-register) for phone:', fullPhone);
-      return res.json({
+      console.log('PIN verification required (register-quick) for phone:', fullPhone);
+      return res.status(201).json({
         id: owner.id,
         phone: owner.phone,
         first_name: owner.first_name,
@@ -75,6 +75,7 @@ router.post('/register-quick', async (req, res) => {
         shop_name: owner.shop_name,
         temp_token: tempToken,
         pin_required: true,
+        auth_token: null,
         boutique_mode_enabled: owner.boutique_mode_enabled,
         message: 'Veuillez entrer votre PIN pour accéder à votre compte'
       });
