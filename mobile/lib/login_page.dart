@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'app_settings.dart';
 import 'services/pin_auth_offline_service.dart';
+import 'package:boutique_mobile/config/api_config.dart';
 
 class LoginPage extends StatefulWidget {
   final void Function(String phone, String? shop, int? id, String? firstName, String? lastName, bool? boutiqueModeEnabled) onLogin;
@@ -28,9 +29,7 @@ class _LoginPageState extends State<LoginPage> {
   List<Map<String, dynamic>> countries = [];
   bool loadingCountries = true;
 
-  String get apiHost {
-    return 'https://decent-carola-llmnd-3709b8dc.koyeb.app/api';
-  }
+  String get apiHost => ApiConfig.getBaseUrl();
 
   @override
   void initState() {

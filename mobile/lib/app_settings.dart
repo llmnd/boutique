@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
-import 'dart:io' show Platform;
+import 'package:boutique_mobile/config/api_config.dart';
 
 class AppSettings extends ChangeNotifier {
   static final AppSettings _instance = AppSettings._internal();
@@ -174,13 +174,7 @@ class AppSettings extends ChangeNotifier {
     notifyListeners();
   }
 
-  String get apiHost {
-    if (kIsWeb) return 'http://localhost:3000/api';
-    try {
-      if (Platform.isAndroid) return 'http://10.0.2.2:3000/api';
-    } catch (_) {}
-    return 'http://localhost:3000/api';
-  }
+  String get apiHost => ApiConfig.getBaseUrl();
 
   Future<void> syncBoutiqueModeToServer(bool enabled) async {
     if (_authToken == null || _authToken!.isEmpty) {

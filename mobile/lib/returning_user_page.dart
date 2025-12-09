@@ -5,6 +5,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'app_settings.dart';
 import 'services/pin_auth_offline_service.dart';
+import 'package:boutique_mobile/config/api_config.dart';
 
 class ReturningUserPage extends StatefulWidget {
   final String phone;
@@ -36,13 +37,7 @@ class _ReturningUserPageState extends State<ReturningUserPage> {
   String pin = '';
   bool loading = false;
 
-  String get apiHost {
-    if (kIsWeb) return 'http://localhost:3000/api';
-    try {
-      if (Platform.isAndroid) return 'http://10.0.2.2:3000/api';
-    } catch (_) {}
-    return 'http://localhost:3000/api';
-  }
+  String get apiHost => ApiConfig.getBaseUrl();
 
   @override
   void initState() {

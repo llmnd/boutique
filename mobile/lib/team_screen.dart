@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+import 'package:boutique_mobile/config/api_config.dart';
 
 class TeamScreen extends StatefulWidget {
   final String ownerPhone;
@@ -18,9 +19,7 @@ class _TeamScreenState extends State<TeamScreen> {
   List activity = [];
   int _selectedSection = 0; // 0: Membres, 1: Activité
 
-  String get apiHost {
-    return 'http://localhost:3000/api';
-  }
+  String get apiHost => ApiConfig.getBaseUrl();
 
   @override
   void initState() {

@@ -19,31 +19,75 @@ function generateDeviceId() {
   return crypto.randomBytes(16).toString('hex');
 }
 
-// Quick register - only requires phone number, creates account instantly
+// Quick register - only requires phone number, creates account instantly OR logs in if exists
 // User can complete profile later in settings (name, lastname, PIN optional)
 router.post('/register-quick', async (req, res) => {
-  const { phone, device_id } = req.body;
+  const { phone, country_code, device_id } = req.body;
   
-  if (!phone) {
-    return res.status(400).json({ error: 'phone required' });
+  if (!phone || !country_code) {
+    return res.status(400).json({ error: 'phone and country_code required' });
   }
   
   try {
+    // ✅ Normalize phone number: remove all non-digits, then format as +COUNTRY_CODE+NUMBER
+    const normalizedNumber = phone.replace(/[^0-9]/g, '');
+    const fullPhone = `+${country_code}${normalizedNumber}`;
+    
     // Check if phone already exists
-    const existingPhone = await pool.query('SELECT id FROM owners WHERE phone=$1', [phone]);
-    if (existingPhone.rowCount > 0) {
-      return res.status(409).json({ error: 'Phone number already registered' });
+    const existingOwner = await pool.query(
+      'SELECT id, phone, first_name, last_name, shop_name, pin, auth_token, boutique_mode_enabled FROM owners WHERE phone=$1',
+      [fullPhone]
+    );
+    
+    // If account exists, handle login instead of signup
+    if (existingOwner.rowCount > 0) {
+      const owner = existingOwner.rows[0];
+      
+      // If owner has NO PIN set, grant immediate access
+      if (owner.pin === null || owner.pin === '') {
+        // Generate new token
+        const authToken = generateToken();
+        const tokenExpiresAt = new Date(Date.now() + TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+        
+        // Update with new token
+        const updateResult = await pool.query(
+          'UPDATE owners SET auth_token=$1, token_expires_at=$2, token_created_at=NOW(), device_id=$3, last_login_at=NOW() WHERE id=$4 RETURNING id, phone, shop_name, first_name, last_name, auth_token, boutique_mode_enabled',
+          [authToken, tokenExpiresAt, device_id || generateDeviceId(), owner.id]
+        );
+        
+        console.log('Auto-login (quick-register) successful for phone (no PIN):', fullPhone);
+        return res.json(updateResult.rows[0]);
+      }
+      
+      // If owner HAS a PIN, return flag indicating PIN is required
+      const tempToken = generateToken();
+      await pool.query(
+        'UPDATE owners SET temp_token=$1 WHERE id=$2',
+        [tempToken, owner.id]
+      );
+      
+      console.log('PIN verification required (quick-register) for phone:', fullPhone);
+      return res.json({
+        id: owner.id,
+        phone: owner.phone,
+        first_name: owner.first_name,
+        last_name: owner.last_name,
+        shop_name: owner.shop_name,
+        temp_token: tempToken,
+        pin_required: true,
+        boutique_mode_enabled: owner.boutique_mode_enabled,
+        message: 'Veuillez entrer votre PIN pour accéder à votre compte'
+      });
     }
     
-    // Generate token for instant access
+    // Account doesn't exist, create new one
     const authToken = generateToken();
     const tokenExpiresAt = new Date(Date.now() + TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
     
-    // Create account with ONLY phone - name, PIN will be optional
     const result = await pool.query(
       'INSERT INTO owners (phone, first_name, last_name, auth_token, token_expires_at, token_created_at, device_id, last_login_at, pin) VALUES ($1, $2, $3, $4, $5, NOW(), $6, NOW(), $7) RETURNING id, phone, shop_name, first_name, last_name, auth_token, boutique_mode_enabled',
       [
-        phone,
+        fullPhone,
         '', // Empty first_name
         '', // Empty last_name
         authToken,
@@ -53,7 +97,7 @@ router.post('/register-quick', async (req, res) => {
       ]
     );
     
-    console.log('Quick registration successful for phone:', phone);
+    console.log('Quick registration successful for phone:', fullPhone);
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error(err);

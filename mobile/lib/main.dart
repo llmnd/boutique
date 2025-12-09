@@ -3,12 +3,12 @@ import 'package:boutique_mobile/add_loan_page.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:boutique_mobile/config/api_config.dart';
 // google_fonts removed - using default text theme
 // avatar image now uses Image.network; removed cached_network_image usage
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -46,8 +46,9 @@ String fmtFCFA(dynamic v) {
   }
 }
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load();
   runApp(const MyApp());
 }
 
@@ -67,13 +68,7 @@ class _MyAppState extends State<MyApp> {
   bool? cachedHasPinForReturning;
   late AppSettings _appSettings;
 
-  String get apiHost {
-    if (kIsWeb) return 'http://localhost:3000/api';
-    try {
-      if (Platform.isAndroid) return 'http://10.0.2.2:3000/api';
-    } catch (_) {}
-    return 'http://localhost:3000/api';
-  }
+  String get apiHost => ApiConfig.getBaseUrl();
 
   @override
   void initState() {
@@ -265,13 +260,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   bool _isSyncing = false;
   late AnimationController _pulseController;
 
-  String get apiHost {
-    if (kIsWeb) return 'http://localhost:3000/api';
-    try {
-      if (Platform.isAndroid) return 'http://10.0.2.2:3000/api';
-    } catch (_) {}
-    return 'http://localhost:3000/api';
-  }
+  String get apiHost => ApiConfig.getBaseUrl();
 
   @override
   void initState() {

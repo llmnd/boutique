@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:intl/intl.dart';
+import 'package:boutique_mobile/config/api_config.dart';
 
 class AddPaymentPage extends StatefulWidget {
   final String ownerPhone;
@@ -42,9 +43,7 @@ class _AddPaymentPageState extends State<AddPaymentPage> {
     super.dispose();
   }
 
-  String get apiHost {
-    return 'https://decent-carola-llmnd-3709b8dc.koyeb.app/api';
-  }
+  String get apiHost => ApiConfig.getBaseUrl();
 
   // ✅ FONCTIONS POUR ADAPTER LES TEXTES SELON LE TYPE
   String _getTitle() => widget.isLoan ? 'REMBOURSER EMPRUNT' : 'AJOUTER PAIEMENT';

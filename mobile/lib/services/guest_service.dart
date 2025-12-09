@@ -1,28 +1,9 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:boutique_mobile/config/api_config.dart';
 
 class GuestService {
-  static String _baseUrl = 'http://localhost:3000/api';
-
-  // Initialize with correct base URL (call this from main.dart)
-  static void initWithBaseUrl(String baseUrl) {
-    _baseUrl = baseUrl;
-    print('🔧 [GuestService] Initialized with baseUrl: $_baseUrl');
-  }
-
-  static String get baseUrl {
-    // If not manually set, compute it
-    if (_baseUrl == 'http://localhost:3000/api') {
-      if (kIsWeb) return 'http://localhost:3000/api';
-      try {
-        if (Platform.isAndroid) return 'http://10.0.2.2:3000/api';
-      } catch (_) {}
-      return 'http://localhost:3000/api';
-    }
-    return _baseUrl;
-  }
+  static String get baseUrl => ApiConfig.getBaseUrl();
 
   static Future<Map<String, dynamic>?> createGuestAccount() async {
     try {

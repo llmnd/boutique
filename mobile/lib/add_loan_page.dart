@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:boutique_mobile/config/api_config.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'data/audio_service.dart';
@@ -30,13 +29,7 @@ class _AddLoanPageState extends State<AddLoanPage> with TickerProviderStateMixin
   final List<double> _recentAmounts = [];
   double _displayAmount = 0.0;
 
-  String get apiHost {
-    if (kIsWeb) return 'http://localhost:3000/api';
-    try {
-      if (Platform.isAndroid) return 'http://10.0.2.2:3000/api';
-    } catch (_) {}
-    return 'http://localhost:3000/api';
-  }
+  String get apiHost => ApiConfig.getBaseUrl();
 
   @override
   void initState() {

@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:boutique_mobile/config/api_config.dart';
 import '../theme.dart';
 
 class LoginPage extends StatefulWidget {
@@ -18,11 +17,7 @@ class _LoginPageState extends State<LoginPage> {
   bool loading = false;
   bool obscurePassword = true;
 
-  String get apiHost {
-    if (kIsWeb) return 'http://localhost:3000/api';
-    try { if (Platform.isAndroid) return 'http://10.0.2.2:3000/api'; } catch(_) {}
-    return 'http://localhost:3000/api';
-  }
+  String get apiHost => ApiConfig.getBaseUrl();
 
   Future doLogin() async {
     if (phoneCtl.text.trim().isEmpty || passCtl.text.isEmpty) {
@@ -198,11 +193,7 @@ class _RegisterPageState extends State<RegisterPage> {
   bool loading = false;
   bool obscurePassword = true;
 
-  String get apiHost {
-    if (kIsWeb) return 'http://localhost:3000/api';
-    try { if (Platform.isAndroid) return 'http://10.0.2.2:3000/api'; } catch(_) {}
-    return 'http://localhost:3000/api';
-  }
+  String get apiHost => ApiConfig.getBaseUrl();
 
   Future doRegister() async {
     if (phoneCtl.text.trim().isEmpty || passCtl.text.isEmpty || shopCtl.text.trim().isEmpty) {

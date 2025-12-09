@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:boutique_mobile/config/api_config.dart';
 
 class AddClientPage extends StatefulWidget {
   final String ownerPhone;
@@ -57,13 +56,7 @@ class _AddClientPageState extends State<AddClientPage> {
     }
   }
 
-  String get apiHost {
-    if (kIsWeb) return 'http://localhost:3000/api';
-    try {
-      if (Platform.isAndroid) return 'http://10.0.2.2:3000/api';
-    } catch (_) {}
-    return 'http://localhost:3000/api';
-  }
+  String get apiHost => ApiConfig.getBaseUrl();
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;

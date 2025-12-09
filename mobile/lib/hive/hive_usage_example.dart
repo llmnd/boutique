@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:boutique_mobile/hive/hive_integration.dart';
 import 'package:boutique_mobile/hive/models/index.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// Exemple d'utilisation du service Hive
 /// À utiliser comme référence pour intégrer Hive dans votre app
@@ -9,7 +10,7 @@ class HiveUsageExample {
   static Future<void> initializeHive(String ownerPhone) async {
     try {
       await HiveIntegration.init(
-        apiBaseUrl: 'https://decent-carola-llmnd-3709b8dc.koyeb.app/api',
+        apiBaseUrl: dotenv.env['API_BASE_URL'] ?? 'https://decent-carola-llmnd-3709b8dc.koyeb.app/api',
         ownerPhone: ownerPhone,
       );
       print('✓ Hive initialized');

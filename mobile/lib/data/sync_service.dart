@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:http/http.dart' as http;
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:boutique_mobile/config/api_config.dart';
 
 import 'local_db.dart';
 
@@ -10,14 +10,7 @@ class SyncService {
   final LocalDb _local = LocalDb();
   DateTime? lastSync;
 
-  String get apiHost {
-    if (kIsWeb) return 'http://localhost:3000/api';
-    try {
-      // On emulator use 10.0.2.2
-      return 'http://10.0.2.2:3000/api';
-    } catch (_) {}
-    return 'http://localhost:3000/api';
-  }
+  String get apiHost => ApiConfig.getBaseUrl();
 
   /// Returns true if sync succeeded (or there was nothing to do)
   Future<bool> sync({required String ownerPhone}) async {
