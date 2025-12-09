@@ -28,14 +28,15 @@ router.post('/register-quick', async (req, res) => {
     return res.status(400).json({ error: 'phone and country_code required' });
   }
   
-  // ✅ Valider que le téléphone ne contient que des chiffres
-  if (!/^\d+$/.test(phone)) {
-    return res.status(400).json({ error: 'Phone must contain only digits' });
+  // ✅ Valider que le téléphone est au format +PAYS+NUMERO (chiffres + optionnel + au début)
+  if (!/^\+?\d+$/.test(phone)) {
+    return res.status(400).json({ error: 'Phone must be in +COUNTRY+NUMBER format or digits only' });
   }
   
-  // ✅ Valider la longueur (8-15 chiffres généralement)
-  if (phone.length < 8 || phone.length > 15) {
-    return res.status(400).json({ error: 'Phone length must be between 8 and 15 digits' });
+  // ✅ Extraire juste les chiffres pour valider la longueur
+  const digitsOnly = phone.replace(/\D/g, '');
+  if (digitsOnly.length < 8 || digitsOnly.length > 20) {
+    return res.status(400).json({ error: 'Phone length must be between 8 and 20 digits' });
   }
   
   try {
