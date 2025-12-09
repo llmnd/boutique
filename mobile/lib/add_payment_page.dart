@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:intl/intl.dart';
 
 class AddPaymentPage extends StatefulWidget {
@@ -45,11 +43,7 @@ class _AddPaymentPageState extends State<AddPaymentPage> {
   }
 
   String get apiHost {
-    if (kIsWeb) return 'http://localhost:3000/api';
-    try {
-      if (Platform.isAndroid) return 'http://10.0.2.2:3000/api';
-    } catch (_) {}
-    return 'http://localhost:3000/api';
+    return 'https://decent-carola-llmnd-3709b8dc.koyeb.app/api';
   }
 
   // ✅ FONCTIONS POUR ADAPTER LES TEXTES SELON LE TYPE

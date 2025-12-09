@@ -37,10 +37,8 @@ class HiveServiceManager {
 
   /// Obtient l'URL de l'API
   String _getApiBaseUrl() {
-    // En développement: localhost:3000
-    // En production: votre domaine
-    const String devUrl = 'http://localhost:3000/api';
-    return devUrl; // À configurer selon l'environnement
+    // Production: Koyeb
+    return 'https://decent-carola-llmnd-3709b8dc.koyeb.app/api';
   }
 
   /// Récupère le service d'intégration Hive

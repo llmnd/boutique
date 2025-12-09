@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'app_settings.dart';
 import 'services/pin_auth_offline_service.dart';
 
@@ -31,11 +29,7 @@ class _LoginPageState extends State<LoginPage> {
   bool loadingCountries = true;
 
   String get apiHost {
-    if (kIsWeb) return 'http://localhost:3000/api';
-    try {
-      if (Platform.isAndroid) return 'http://10.0.2.2:3000/api';
-    } catch (_) {}
-    return 'http://localhost:3000/api';
+    return 'https://decent-carola-llmnd-3709b8dc.koyeb.app/api';
   }
 
   @override

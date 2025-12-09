@@ -9,7 +9,7 @@ class HiveUsageExample {
   static Future<void> initializeHive(String ownerPhone) async {
     try {
       await HiveIntegration.init(
-        apiBaseUrl: 'http://localhost:3000/api',
+        apiBaseUrl: 'https://decent-carola-llmnd-3709b8dc.koyeb.app/api',
         ownerPhone: ownerPhone,
       );
       print('✓ Hive initialized');
