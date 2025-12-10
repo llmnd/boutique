@@ -45,8 +45,11 @@ class _QuickLoginPageState extends State<QuickLoginPage> {
         Uri.parse('$apiHost/countries'),
       ).timeout(const Duration(seconds: 5));
       
+      print('[COUNTRIES] Status: ${res.statusCode}, Body: ${res.body}');
+      
       if (res.statusCode == 200) {
         final List<dynamic> data = json.decode(res.body);
+        print('[COUNTRIES] Loaded ${data.length} countries');
         setState(() {
           countries = List<Map<String, dynamic>>.from(
             data.map((item) => {
@@ -60,10 +63,11 @@ class _QuickLoginPageState extends State<QuickLoginPage> {
           loadingCountries = false;
         });
       } else {
+        print('[COUNTRIES] Error: ${res.statusCode} - ${res.body}');
         setState(() => loadingCountries = false);
       }
     } catch (e) {
-      print('[COUNTRIES] Erreur chargement: $e');
+      print('[COUNTRIES] Exception: $e');
       setState(() => loadingCountries = false);
     }
   }
@@ -498,7 +502,7 @@ class _QuickLoginPageState extends State<QuickLoginPage> {
                         color: colors.onSurface.withOpacity(0.5),
                       )),
                       const SizedBox(height: 12),
-                      if (loadingCountries)
+                  if (loadingCountries)
                         Container(
                           width: double.infinity,
                           height: 48,
@@ -511,6 +515,16 @@ class _QuickLoginPageState extends State<QuickLoginPage> {
                               color: colors.primary,
                             ),
                           ),
+                        )
+                      else if (countries.isEmpty)
+                        Container(
+                          width: double.infinity,
+                          height: 48,
+                          alignment: Alignment.center,
+                          child: Text('Erreur chargement pays', style: TextStyle(
+                            fontSize: 12,
+                            color: colors.onSurface.withOpacity(0.5),
+                          )),
                         )
                       else
                         DropdownButtonFormField<String>(

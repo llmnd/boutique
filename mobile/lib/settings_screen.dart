@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:boutique_mobile/config/api_config.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'app_settings.dart';
 import 'stats_screen.dart';
 
@@ -312,16 +313,168 @@ class _SettingsScreenState extends State<SettingsScreen> {
         'pin': pin,
       };
 
-      final res = await http.patch(
-        Uri.parse('$apiHost/auth/update-pin'),
+      final res = await http.post(
+        Uri.parse('$apiHost/auth/set-pin'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode(body),
       ).timeout(const Duration(seconds: 8));
 
       if (res.statusCode == 200) {
+        // ✨ Sauvegarder que le PIN a été défini
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('pin_set', true);
+        
         _showMinimalSnackbar('PIN défini avec succès');
       } else {
         _showMinimalSnackbar('Erreur lors de la définition du PIN');
+      }
+    } catch (e) {
+      _showMinimalSnackbar('Erreur: $e');
+    }
+  }
+
+  void _showRemovePinSheet() {
+    final colors = Theme.of(context).colorScheme;
+    final pinCtl = TextEditingController();
+    bool showPin = false;
+    bool isLoading = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: colors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(ctx).viewInsets.bottom,
+              left: 20,
+              right: 20,
+              top: 20,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: colors.onSurface.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Supprimer le PIN',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: colors.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Entrez votre PIN pour confirmer la suppression',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: colors.onSurface.withOpacity(0.6),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                
+                TextField(
+                  controller: pinCtl,
+                  keyboardType: TextInputType.number,
+                  maxLength: 4,
+                  obscureText: !showPin,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: colors.onSurface,
+                    letterSpacing: 8,
+                  ),
+                  decoration: InputDecoration(
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    contentPadding: const EdgeInsets.all(16),
+                    counterText: '',
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        showPin ? Icons.visibility : Icons.visibility_off,
+                        color: colors.onSurface.withOpacity(0.6),
+                      ),
+                      onPressed: () {
+                        setDialogState(() => showPin = !showPin);
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: isLoading ? null : () async {
+                      if (pinCtl.text.length != 4 || !RegExp(r'^\d+$').hasMatch(pinCtl.text)) {
+                        _showMinimalSnackbar('Le PIN doit contenir exactement 4 chiffres');
+                        return;
+                      }
+                      
+                      setDialogState(() => isLoading = true);
+                      await _removePin(pinCtl.text);
+                      setDialogState(() => isLoading = false);
+                      if (ctx.mounted) Navigator.pop(ctx);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                    ),
+                    child: isLoading 
+                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : const Text('Supprimer le PIN'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Annuler'),
+                ),
+                const SizedBox(height: 20),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _removePin(String pin) async {
+    try {
+      final body = {
+        'auth_token': _settings.authToken,
+        'pin': pin,
+      };
+
+      final res = await http.post(
+        Uri.parse('$apiHost/auth/remove-pin'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode(body),
+      ).timeout(const Duration(seconds: 8));
+
+      if (res.statusCode == 200) {
+        // ✨ Sauvegarder que le PIN a été supprimé
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('pin_set', false);
+        
+        _showMinimalSnackbar('PIN supprimé avec succès');
+      } else {
+        final errorBody = json.decode(res.body);
+        final errorMsg = errorBody['error'] ?? 'Erreur lors de la suppression du PIN';
+        _showMinimalSnackbar(errorMsg);
       }
     } catch (e) {
       _showMinimalSnackbar('Erreur: $e');
@@ -646,6 +799,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 icon: Icons.lock_outline,
                 color: Colors.red,
                 onTap: _showPinSheet,
+              ),
+
+              const SizedBox(height: 12),
+
+              // ✨ SUPPRIMER PIN
+              _SettingsCard(
+                title: 'Supprimer PIN',
+                subtitle: 'Désactiver la protection par code PIN',
+                icon: Icons.lock_open_outlined,
+                color: Colors.orange,
+                onTap: _showRemovePinSheet,
               ),
 
               const SizedBox(height: 12),

@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// Configuration pour la synchronisation Hive + PostgreSQL
 /// Ce fichier contient tous les paramètres de configuration de sync
@@ -150,9 +151,8 @@ class HiveSyncConfig {
   static const bool USE_CACHE_FOR_GET = true;
 
   // ============= API URLs =============
-  /// Base URL de l'API backend
-  /// À définir dynamiquement selon l'environnement
-  static String API_BASE_URL = 'http://localhost:3000';
+  /// Base URL de l'API backend (lue depuis .env)
+  static String get API_BASE_URL => dotenv.env['API_BASE_URL'] ?? 'https://decent-carola-llmnd-3709b8dc.koyeb.app/api';
 
   /// Endpoints de l'API
   static const String ENDPOINT_DEBTS = '/debts';
@@ -217,32 +217,22 @@ class HiveSyncConfig {
 
   // ============= Configuration Profiles =============
 
-  /// Configuration pour développement (plus de logs, timeout long)
+  /// Configuration pour développement - utilise le .env
   static void setupDevelopment() {
-    API_BASE_URL = 'http://localhost:3000';
-    // Les valeurs par défaut sont déjà appropriées pour le développement
+    // API_BASE_URL est lue depuis .env, aucune modification nécessaire
   }
 
-  /// Configuration pour staging (équilibre entre perf et logs)
+  /// Configuration pour staging - utilise le .env
   static void setupStaging() {
-    API_BASE_URL = 'https://staging-api.boutique.local';
+    // API_BASE_URL est lue depuis .env, aucune modification nécessaire
   }
 
-  /// Configuration pour production (moins de logs, optimisé)
+  /// Configuration pour production - utilise le .env
   static void setupProduction() {
-    API_BASE_URL = 'https://api.boutique.app';
-  }
-
-  /// Configuration personnalisée
-  static void setupCustom({
-    required String apiUrl,
-    required int autoSyncIntervalSeconds,
-    required int maxRetryAttempts,
-    required bool debugLogging,
-  }) {
-    API_BASE_URL = apiUrl;
+    // API_BASE_URL est lue depuis .env, aucune modification nécessaire
   }
 }
+
 
 /// Classe pour les constantes de statut de synchronisation
 class SyncStatus {

@@ -631,16 +631,6 @@ router.post('/set-pin', async (req, res) => {
     
     const ownerId = ownerResult.rows[0].id;
     
-    // Check if PIN already exists (for another owner)
-    const pinCheck = await pool.query(
-      'SELECT id FROM owners WHERE pin=$1 AND id != $2',
-      [pin, ownerId]
-    );
-    
-    if (pinCheck.rowCount > 0) {
-      return res.status(409).json({ error: 'PIN already in use' });
-    }
-    
     // Hash PIN for security
     const hashedPin = await bcrypt.hash(pin, SALT_ROUNDS);
     
@@ -659,16 +649,16 @@ router.post('/set-pin', async (req, res) => {
 
 // Remove PIN from account (requires password)
 router.post('/remove-pin', async (req, res) => {
-  const { auth_token, password } = req.body;
+  const { auth_token, pin } = req.body;
   
-  if (!auth_token || !password) {
-    return res.status(400).json({ error: 'auth_token and password required' });
+  if (!auth_token || !pin) {
+    return res.status(400).json({ error: 'auth_token and pin required' });
   }
   
   try {
     // Verify token
     const ownerResult = await pool.query(
-      'SELECT id, password FROM owners WHERE auth_token=$1',
+      'SELECT id, pin FROM owners WHERE auth_token=$1',
       [auth_token]
     );
     
@@ -676,9 +666,19 @@ router.post('/remove-pin', async (req, res) => {
     
     const owner = ownerResult.rows[0];
     
-    // Verify password
-    const passwordMatch = await bcrypt.compare(password, owner.password);
-    if (!passwordMatch) return res.status(401).json({ error: 'Invalid password' });
+    // Check if PIN exists
+    if (!owner.pin) {
+      return res.status(400).json({ error: 'No PIN set to remove' });
+    }
+    
+    // Verify PIN
+    try {
+      const pinMatch = await bcrypt.compare(pin, owner.pin);
+      if (!pinMatch) return res.status(401).json({ error: 'Invalid PIN' });
+    } catch (bcryptErr) {
+      console.error('bcrypt compare error:', bcryptErr);
+      return res.status(401).json({ error: 'Invalid PIN' });
+    }
     
     // Remove PIN
     const updateResult = await pool.query(
@@ -688,8 +688,8 @@ router.post('/remove-pin', async (req, res) => {
     
     res.json({ success: true, message: 'PIN removed successfully', user: updateResult.rows[0] });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'DB error' });
+    console.error('Remove PIN error:', err);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 

@@ -155,6 +155,9 @@ class _MyAppState extends State<MyApp> {
     final pinService = PinAuthOfflineService();
     final hasPinSet = await pinService.hasCachedCredentials();
     
+    // ✨ Sauvegarder l'état du PIN dans SharedPreferences
+    await prefs.setBool('pin_set', hasPinSet);
+    
     setState(() { 
       ownerPhone = phone; 
       ownerShopName = shopName; 
@@ -164,24 +167,39 @@ class _MyAppState extends State<MyApp> {
   }
 
   Future clearOwner() async {
-    final pinService = PinAuthOfflineService();
+    final prefs = await SharedPreferences.getInstance();
     
-    // Check if user has a PIN set
-    final hasPinSet = await pinService.hasCachedCredentials();
+    // Récupérer le téléphone sauvegardé
+    final phone = prefs.getString('owner_phone');
     
-    // Only allow logout if user has a PIN
-    // If no PIN, user stays logged in indefinitely
-    if (!hasPinSet) {
-      // No PIN = no logout allowed
+    // Vérifier si un PIN a été défini (selon le flag stocké)
+    final hasPinSet = prefs.getBool('pin_set') ?? false;
+    
+    if (phone == null) {
+      // Pas de téléphone sauvegardé, aller à QuickLoginPage
+      setState(() {
+        ownerPhone = null;
+        ownerShopName = null;
+        ownerId = null;
+        shouldShowPinEntry = false;
+        cachedPhoneForReturning = null;
+        cachedHasPinForReturning = null;
+      });
       return;
     }
     
-    // User has PIN - allow logout to PIN entry screen
-    final prefs = await SharedPreferences.getInstance();
-    final phone = prefs.getString('owner_phone');
-    
-    if (phone != null) {
-      // Store for ReturningUserPage with PIN entry
+    if (!hasPinSet) {
+      // ✨ Pas de PIN = afficher QuickLoginPage directement
+      setState(() {
+        ownerPhone = null;
+        ownerShopName = null;
+        ownerId = null;
+        shouldShowPinEntry = false;
+        cachedPhoneForReturning = null;
+        cachedHasPinForReturning = null;
+      });
+    } else {
+      // User has PIN - allow logout to PIN entry screen
       setState(() {
         shouldShowPinEntry = true;
         cachedPhoneForReturning = phone;
@@ -354,7 +372,17 @@ bool _hasConnection(List<ConnectivityResult> results) {
 }
 
   Future<void> _showClientActions(dynamic client, dynamic clientId) async {
-    if (client == null) return;
+    // ✨ CORRIGÉ: Permettre les actions même si client est null, tant qu'on a un clientId valide
+    if (client == null && clientId == null) return;
+    
+    // Si client est null mais on a un clientId, essayer de le charger
+    if (client == null && clientId != null && clientId != 'unknown') {
+      client = clients.firstWhere((x) => x['id'] == clientId, orElse: () => null);
+    }
+    
+    // Si on ne peut toujours pas trouver le client et c'est 'unknown', on ne peut pas faire d'actions
+    if (client == null && clientId == 'unknown') return;
+    
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black;
 
@@ -370,6 +398,10 @@ bool _hasConnection(List<ConnectivityResult> results) {
           SimpleDialogOption(
             onPressed: () => Navigator.of(ctx).pop('addition'),
             child: Row(children: [const Icon(Icons.add, color: Colors.orange), const SizedBox(width: 12), Text('Ajouter un prêt', style: TextStyle(color: textColor))]),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.of(ctx).pop('edit'),
+            child: Row(children: [const Icon(Icons.edit, color: Colors.blue), const SizedBox(width: 12), Text('Modifier ${HomePageMethods.getTermClient()}', style: TextStyle(color: textColor))]),
           ),
           SimpleDialogOption(
             onPressed: () => Navigator.of(ctx).pop('delete'),
@@ -397,6 +429,12 @@ bool _hasConnection(List<ConnectivityResult> results) {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Aucune dette trouvée pour ajouter un montant')));
       }
+    } else if (choice == 'edit') {
+      // ✨ Petit délai pour que le premier dialogue se ferme avant d'ouvrir le second
+      await Future.delayed(const Duration(milliseconds: 100));
+      await _editClient(client);
+      await fetchClients();
+      await fetchDebts();
     } else if (choice == 'delete') {
       final confirm = await showDialog<bool>(
         context: context,
@@ -1035,11 +1073,11 @@ bool _hasConnection(List<ConnectivityResult> results) {
         context: context,
         builder: (c) {
   final isDark = Theme.of(context).brightness == Brightness.dark;
-  final bgColor = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+  final bgColor = isDark ? const Color.fromARGB(255, 0, 0, 0) : Colors.white;
   final textColor = isDark ? Colors.white : Colors.black;
   
   return Dialog(
-    backgroundColor: Colors.transparent,
+    backgroundColor: const Color.fromARGB(255, 0, 0, 0),
     child: Container(
       decoration: BoxDecoration(
         color: bgColor,
@@ -1114,16 +1152,10 @@ bool _hasConnection(List<ConnectivityResult> results) {
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [
-                          Color(0xFFD86C01),
-                          Color(0xFFFF8C2A),
-                        ],
-                      ),
                       borderRadius: BorderRadius.circular(12),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFFD86C01).withOpacity(0.3),
+                          color: const Color.fromARGB(210, 37, 0, 123).withOpacity(0.3),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
@@ -1442,6 +1474,7 @@ final choice = await showModalBottomSheet<String>(
 
         if (res.statusCode == 200) {
           await fetchClients();
+          await fetchDebts(); // ✅ Recharger les dettes aussi pour mettre à jour les noms partout
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('${HomePageMethods.getTermClientUp()} modifié avec succès')),
