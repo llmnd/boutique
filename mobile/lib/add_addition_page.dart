@@ -104,7 +104,7 @@ class _AddAdditionPageState extends State<AddAdditionPage> {
     final bgColor = isDark ? const Color.fromARGB(255, 15, 12, 15) : const Color.fromARGB(255, 239, 233, 239);
     final textColor = isDark ? const Color.fromARGB(255, 255, 255, 255) : Colors.black;
     final textColorSecondary = isDark ? Colors.white70 : Colors.black54;
-    final borderColor = isDark ? const Color(0xFF333333) : const Color(0xFFDDDDDD);
+    final borderColor = isDark ? const Color(0xFF333333) : const Color.fromARGB(255, 212, 211, 211);
     final surfaceColor = isDark ? const Color.fromARGB(255, 0, 0, 0) : const Color(0xFFFFFFFF);
 
     return Scaffold(
