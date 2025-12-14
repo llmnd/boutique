@@ -621,7 +621,7 @@ class _AddLoanPageState extends State<AddLoanPage> with TickerProviderStateMixin
                             width: 3,
                             height: 24,
                             decoration: BoxDecoration(
-                              color: subtleAccent,
+                              color: const Color.fromARGB(255, 135, 41, 212),
                               borderRadius: BorderRadius.circular(2),
                             ),
                           ),
