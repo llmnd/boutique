@@ -23,6 +23,7 @@ import 'add_debt_page.dart';
 import 'add_client_page.dart';
 import 'add_addition_page.dart';
 import 'debt_details_page.dart';
+import 'widgets/premium_components.dart';
 import 'theme.dart';
 import 'utils/methods_extraction.dart';
 
@@ -1588,7 +1589,7 @@ final choice = await showModalBottomSheet<String>(
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black;
     final textColorSecondary = isDark ? Colors.white70 : Colors.black54;
-    final borderColor = isDark ? Colors.white24 : Colors.black26;
+    final borderColor = isDark ? const Color.fromARGB(164, 65, 55, 71) : const Color.fromARGB(66, 9, 7, 11);
 
     // Préparer la liste rendue des récents selon le sous-onglet actif
     final List<dynamic> recentItems = [];
@@ -2198,7 +2199,6 @@ final choice = await showModalBottomSheet<String>(
             margin: const EdgeInsets.only(bottom: 8),
             decoration: BoxDecoration(
               color: Colors.transparent,
-              border: Border(bottom: BorderSide(color: borderColor, width: 0.3)),
               borderRadius: BorderRadius.circular(0),
             ),
             child: Column(
@@ -2237,7 +2237,8 @@ final choice = await showModalBottomSheet<String>(
                                 ),
                               ),
                               // ✅ NUMÉRO EN BAS - beau et lisible avec badge
-                              if (clientPhone != null && clientPhone.isNotEmpty)
+                              // N'afficher le numéro que s'il n'existe pas dans les contacts
+                              if (clientPhone != null && clientPhone.isNotEmpty && client == null)
                                 Padding(
                                   padding: const EdgeInsets.only(top: 6),
                                   child: Container(
@@ -2252,31 +2253,6 @@ final choice = await showModalBottomSheet<String>(
                                     ),
                                     child: Text(
                                       clientPhone,
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Theme.of(context).colorScheme.primary,
-                                        fontWeight: FontWeight.w500,
-                                        letterSpacing: 0.3,
-                                        fontFamily: 'monospace',
-                                      ),
-                                    ),
-                                  ),
-                                )
-                              else if (client != null && (client['phone'] ?? '').toString().isNotEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 6),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                                    decoration: BoxDecoration(
-                                      color: Theme.of(context).colorScheme.primary.withOpacity(0.08),
-                                      borderRadius: BorderRadius.circular(4),
-                                      border: Border.all(
-                                        color: Theme.of(context).colorScheme.primary.withOpacity(0.15),
-                                        width: 0.5,
-                                      ),
-                                    ),
-                                    child: Text(
-                                      client['phone'].toString(),
                                       style: TextStyle(
                                         fontSize: 12,
                                         color: Theme.of(context).colorScheme.primary,
@@ -2452,6 +2428,14 @@ final choice = await showModalBottomSheet<String>(
                         ),
                       ],
                     ),
+                  ),
+                ),
+                // ✅ NOUVEAU : Trait fin et centré
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 100, vertical: 4),
+                  child: Container(
+                    height: 0.5,
+                    color: borderColor,
                   ),
                 ),
                 if (isOpen)

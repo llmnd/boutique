@@ -23,7 +23,8 @@ class PremiumCard extends StatefulWidget {
   State<PremiumCard> createState() => _PremiumCardState();
 }
 
-class _PremiumCardState extends State<PremiumCard> with SingleTickerProviderStateMixin {
+class _PremiumCardState extends State<PremiumCard>
+    with SingleTickerProviderStateMixin {
   late AnimationController _hoverController;
   bool _isHovering = false;
 
@@ -85,8 +86,7 @@ class _PremiumCardState extends State<PremiumCard> with SingleTickerProviderStat
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(
-                          _isHovering ? 0.15 : 0.08),
+                      color: Colors.black.withOpacity(_isHovering ? 0.25 : 0.2),
                       blurRadius: shadowBlur,
                       offset: Offset(0, _hoverController.value * 2),
                     ),
@@ -286,8 +286,10 @@ class _AnimatedProgressBarState extends State<AnimatedProgressBar>
   void didUpdateWidget(AnimatedProgressBar oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.progress != widget.progress) {
-      _animation = Tween<double>(begin: oldWidget.progress, end: widget.progress)
-          .animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+      _animation = Tween<double>(
+              begin: oldWidget.progress, end: widget.progress)
+          .animate(
+              CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
       _controller.forward(from: 0);
     }
   }

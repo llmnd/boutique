@@ -103,20 +103,24 @@ class _AddAdditionPageState extends State<AddAdditionPage> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final colors = _ZaraColors(isDark);
+    final bgColor = isDark ? const Color.fromARGB(255, 15, 12, 15) : const Color.fromARGB(255, 239, 233, 239);
+    final textColor = isDark ? const Color.fromARGB(255, 255, 255, 255) : Colors.black;
+    final textColorSecondary = isDark ? Colors.white70 : Colors.black54;
+    final borderColor = isDark ? const Color(0xFF333333) : const Color(0xFFDDDDDD);
+    final surfaceColor = isDark ? const Color.fromARGB(255, 0, 0, 0) : const Color(0xFFFFFFFF);
 
     return Scaffold(
-      backgroundColor: colors.background,
+      backgroundColor: bgColor,
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: colors.background,
+        backgroundColor: bgColor,
         leading: IconButton(
-          icon: Icon(Icons.close, color: colors.textPrimary, size: 20),
+          icon: Icon(Icons.close, color: textColor, size: 20),
           onPressed: () => Navigator.of(context).pop(false),
         ),
         title: Text('Ajouter un montant', 
           style: TextStyle(
-            color: colors.textPrimary,
+            color: textColor,
             fontSize: 16,
             fontWeight: FontWeight.w500,
             letterSpacing: -0.2
@@ -134,7 +138,7 @@ class _AddAdditionPageState extends State<AddAdditionPage> {
               // Montant principal
               Text('MONTANT', 
                 style: TextStyle(
-                  color: colors.textSecondary,
+                  color: textColorSecondary,
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
                   letterSpacing: 0.5
@@ -146,34 +150,34 @@ class _AddAdditionPageState extends State<AddAdditionPage> {
                 style: TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.w300,
-                  color: colors.textPrimary,
+                  color: textColor,
                   height: 1.2
                 ),
                 decoration: InputDecoration(
-  hintText: '',
-  hintStyle: TextStyle(color: colors.textHint),
-  filled: true,
-  fillColor: colors.surface,
-  enabledBorder: OutlineInputBorder(
-    borderSide: BorderSide(color: colors.border, width: 1),
-  ),
-  focusedBorder: OutlineInputBorder(
-    borderSide: BorderSide(color: colors.textPrimary, width: 1.2),
-  ),
-  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-  prefixStyle: TextStyle(
-    fontSize: 28,
-    fontWeight: FontWeight.w300,
-    color: colors.textPrimary,
-  ),
-),
+                  hintText: '',
+                  hintStyle: TextStyle(color: textColorSecondary),
+                  filled: true,
+                  fillColor: surfaceColor,
+                  enabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: borderColor, width: 1),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: textColor, width: 1.2),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  prefixStyle: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w300,
+                    color: textColor,
+                  ),
+                ),
               ),
               const SizedBox(height: 24),
 
               // Section informations
               Text('INFORMATIONS',
                 style: TextStyle(
-                  color: colors.textSecondary,
+                  color: textColorSecondary,
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
                   letterSpacing: 0.5
@@ -182,14 +186,15 @@ class _AddAdditionPageState extends State<AddAdditionPage> {
 
               // Date
               _ZaraFormField(
+                isDark: isDark,
                 onTap: _selectDate,
                 child: Row(
                   children: [
                     Icon(Icons.calendar_today_outlined, 
-                      color: colors.textSecondary, size: 18),
+                      color: textColorSecondary, size: 18),
                     const SizedBox(width: 12),
                     Text(DateFormat('dd/MM/yyyy').format(_addedAt), 
-                      style: TextStyle(color: colors.textPrimary)),
+                      style: TextStyle(color: textColor)),
                   ],
                 ),
               ),
@@ -197,15 +202,16 @@ class _AddAdditionPageState extends State<AddAdditionPage> {
 
               // Notes
               _ZaraFormField(
+                isDark: isDark,
                 child: TextField(
                   controller: _notesCtl,
                   maxLines: 3,
                   decoration: InputDecoration(
                     hintText: 'Notes (optionnel)',
-                    hintStyle: TextStyle(color: colors.textHint, fontSize: 14),
+                    hintStyle: TextStyle(color: textColorSecondary, fontSize: 14),
                     border: InputBorder.none,
                   ),
-                  style: TextStyle(color: colors.textPrimary, fontSize: 14),
+                  style: TextStyle(color: textColor, fontSize: 14),
                 ),
               ),
               const Spacer(),
@@ -220,10 +226,10 @@ class _AddAdditionPageState extends State<AddAdditionPage> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _loading || _getEnteredAmount() <= 0
                         ? Colors.grey[400]
-                        : colors.buttonBackground,
+                        : textColor,
                     foregroundColor: _loading || _getEnteredAmount() <= 0
                         ? Colors.grey[700]
-                        : colors.buttonForeground,
+                        : bgColor,
                     elevation: 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(0),
@@ -235,7 +241,7 @@ class _AddAdditionPageState extends State<AddAdditionPage> {
                         height: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: colors.buttonForeground,
+                          color: bgColor,
                         ),
                       )
                     : const Text(
@@ -267,20 +273,22 @@ class _AddAdditionPageState extends State<AddAdditionPage> {
 class _ZaraFormField extends StatelessWidget {
   final Widget child;
   final VoidCallback? onTap;
+  final bool isDark;
 
-  const _ZaraFormField({required this.child, this.onTap});
+  const _ZaraFormField({required this.child, this.onTap, required this.isDark});
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final colors = _ZaraColors(isDark);
+    final bgColor = isDark ? const Color(0xFF0F1113) : const Color(0xFFFFFFFF);
+    final borderColor = isDark ? const Color(0xFF333333) : const Color(0xFFDDDDDD);
+    final surfaceColor = isDark ? const Color(0xFF121416) : const Color(0xFFFFFFFF);
 
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: colors.border, width: 1),
+        border: Border.all(color: borderColor, width: 1),
       ),
       child: Material(
-        color: colors.surface,
+        color: surfaceColor,
         child: InkWell(
           onTap: onTap,
           child: Padding(
@@ -298,8 +306,8 @@ class _ZaraColors {
 
   _ZaraColors(this.isDark);
 
-  Color get background => isDark ? const Color.fromARGB(255, 0, 0, 0) : const Color(0xFFFFFFFF);
-  Color get surface => isDark ? const Color.fromARGB(255, 0, 0, 0) : const Color(0xFFFFFFFF);
+  Color get background => isDark ? const Color(0xFF0F1113) : const Color(0xFFFFFFFF);
+  Color get surface => isDark ? const Color(0xFF121416) : const Color(0xFFFFFFFF);
   Color get textPrimary => isDark ? const Color(0xFFFFFFFF) : const Color(0xFF000000);
   Color get textSecondary => isDark ? const Color(0xFFB0B0B0) : const Color(0xFF666666);
   Color get textHint => isDark ? const Color(0xFF888888) : const Color(0xFF999999);

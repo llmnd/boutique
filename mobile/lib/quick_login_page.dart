@@ -111,11 +111,28 @@ class _QuickLoginPageState extends State<QuickLoginPage> {
       if (res.statusCode == 201) {
         final data = json.decode(res.body);
         final id = data['id'] is int ? data['id'] as int : (data['id'] is String ? int.tryParse(data['id']) : null);
+        final phone = data['phone'] ?? '';
+        final shopName = data['shop_name'] ?? '';
+        final firstName = data['first_name'] ?? '';
+        final lastName = data['last_name'] ?? '';
+        final authToken = data['auth_token'];
+        final tempToken = data['temp_token']; // ✨ Récupérer le temp_token
         
-        if (data['auth_token'] != null) {
+        // ✨ Si PIN requis, afficher le dialog de PIN
+        if (data['pin_required'] == true) {
+          setState(() {
+            loading = false;
+            this.tempToken = tempToken; // ✨ Sauvegarder le temp_token pour _verifyPin
+          });
+          _showPinDialog(phone, id);
+          return;
+        }
+        
+        // Si auth_token est présent, l'utilisateur n'a pas de PIN
+        if (authToken != null) {
           final settings = AppSettings();
-          await settings.initForOwner(data['phone']);
-          await settings.setAuthToken(data['auth_token']);
+          await settings.initForOwner(phone);
+          await settings.setAuthToken(authToken);
           if (data['boutique_mode_enabled'] != null) {
             await settings.setBoutiqueModeEnabled(data['boutique_mode_enabled'] as bool);
           }
@@ -123,15 +140,15 @@ class _QuickLoginPageState extends State<QuickLoginPage> {
         
         await PinAuthOfflineService().cacheCredentials(
           pin: '',
-          token: data['auth_token'],
-          phone: data['phone'],
-          firstName: data['first_name'] ?? '',
-          lastName: data['last_name'] ?? '',
-          shopName: data['shop_name'] ?? '',
+          token: authToken,
+          phone: phone,
+          firstName: firstName,
+          lastName: lastName,
+          shopName: shopName,
           userId: id ?? 0,
         );
         
-        widget.onLogin(data['phone'], data['shop_name'], id, data['first_name'], data['last_name'], data['boutique_mode_enabled'] as bool?);
+        widget.onLogin(phone, shopName, id, firstName, lastName, data['boutique_mode_enabled'] as bool?);
       } else if (res.statusCode == 409) {
         setState(() => loading = false);
         _showConfirmDialog(

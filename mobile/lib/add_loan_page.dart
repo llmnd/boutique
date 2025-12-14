@@ -534,7 +534,7 @@ class _AddLoanPageState extends State<AddLoanPage> with TickerProviderStateMixin
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black;
     final textColorSecondary = isDark ? Colors.white70 : Colors.black54;
-    final borderColor = isDark ? Colors.white24 : Colors.black26;
+    final borderColor = isDark ? const Color(0xFF333333) : const Color(0xFFDDDDDD);
     
     const subtleAccent = Color.fromARGB(255, 141, 47, 219); // Violet pour les emprunts
 

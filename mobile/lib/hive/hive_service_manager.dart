@@ -1,5 +1,5 @@
 import 'package:boutique_mobile/hive/hive_integration.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:boutique_mobile/config/api_config.dart';
 
 /// Initialise et gère le cycle de vie de HiveService
 class HiveServiceManager {
@@ -38,8 +38,8 @@ class HiveServiceManager {
 
   /// Obtient l'URL de l'API
   String _getApiBaseUrl() {
-    // Lire depuis le fichier .env
-    return dotenv.env['API_BASE_URL'] ?? 'https://decent-carola-llmnd-3709b8dc.koyeb.app/api';
+    // Utiliser la configuration centralisée ApiConfig
+    return ApiConfig.getBaseUrl();
   }
 
   /// Récupère le service d'intégration Hive

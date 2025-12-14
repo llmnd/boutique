@@ -165,7 +165,7 @@ class _AddPaymentPageState extends State<AddPaymentPage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black;
     final textColorSecondary = isDark ? Colors.white70 : Colors.black54;
-    final borderColor = isDark ? Colors.white24 : Colors.black26;
+    final borderColor = isDark ? const Color(0xFF333333) : const Color(0xFFDDDDDD);
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,

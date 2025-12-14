@@ -38,9 +38,9 @@ Color getWhiteOpacity(BuildContext context, double opacity) {
 }
 
 // Palette Dark Theme Premium
-const Color kBackground = Color.fromARGB(255, 0, 0, 0);       // Noir très foncé - background principal
-const Color kSurface = Color.fromARGB(85, 0, 0, 0);          // Gris très foncé - cards/surfaces
-const Color kCard = Color.fromARGB(255, 2, 0, 5);             // Gris foncé - card background
+const Color kBackground = Color.fromARGB(255, 17, 14, 18);       // Gris très foncé avec teinte bleutée - background principal
+const Color kSurface = Color.fromARGB(255, 0, 0, 0);          // Gris très foncé - cards/surfaces
+const Color kCard = Color.fromARGB(255, 0, 0, 0);             // Gris foncé - card background
 const Color kAccent = Color(0xFF7C3AED);           // Violet vibrant - accent principal
 const Color kAccentAlt = Color(0xFF8B5CF6);        // Violet clair - accent secondaire
 const Color kMuted = Color(0xFF888888);            // Gris moyen
@@ -52,7 +52,7 @@ const Color kTextPrimary = Color(0xFFFFFFFF);      // Texte blanc pur
 const Color kTextSecondary = Color.fromARGB(255, 205, 203, 203);    // Texte gris clair
 
 // Light Theme Colors
-const Color kBackgroundLight = Color(0xFFF5F5F5);  // Gris très clair - background principal
+const Color kBackgroundLight = Color.fromARGB(255, 228, 218, 227);  // Gris très clair - background principal
 const Color kSurfaceLight = Color(0xFFFAFAFA);     // Gris ultra clair - cards/surfaces
 const Color kCardLight = Color(0xFFFAFAFA);        // Gris ultra clair - card background
 const Color kMutedLight = Color(0xFF666666);       // Gris foncé clair

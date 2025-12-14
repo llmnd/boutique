@@ -251,28 +251,54 @@ class HiveService {
 
   /// Synchronise avec le serveur
   Future<bool> syncWithServer(String ownerPhone, {String? token}) async {
-    if (_isSyncing) return false;
+    if (_isSyncing) {
+      print('[HiveService] Sync already in progress');
+      return false;
+    }
     if (!_isOnline) {
-      print('Device is offline. Queuing operations...');
+      print('[HiveService] Device is offline. Queuing operations...');
       return false;
     }
 
     _isSyncing = true;
-    print('Starting sync for $ownerPhone...');
+    print('[HiveService] 📱 Starting sync for $ownerPhone...');
 
     try {
+      int failureCount = 0;
+
       // Traiter la file d'attente
-      await _processSyncQueue(ownerPhone, token);
+      try {
+        await _processSyncQueue(ownerPhone, token);
+      } catch (e) {
+        print('[HiveService] ❌ Error processing queue: $e');
+        failureCount++;
+      }
 
       // Récupérer les données du serveur
-      await _pullFromServer(ownerPhone, token);
+      try {
+        await _pullFromServer(ownerPhone, token);
+      } catch (e) {
+        print('[HiveService] ❌ Error pulling from server: $e');
+        failureCount++;
+      }
 
       // Mettre à jour le statut de sync
-      _updateSyncStatus(ownerPhone, success: true);
+      final hasIssues = failureCount > 0;
+      _updateSyncStatus(
+        ownerPhone,
+        success: !hasIssues,
+        error: hasIssues ? 'Partial sync: $failureCount failed' : null,
+      );
 
-      return true;
+      if (hasIssues) {
+        print('[HiveService] ⚠️ Sync completed with issues ($failureCount errors)');
+        return false;
+      } else {
+        print('[HiveService] ✅ Sync completed successfully');
+        return true;
+      }
     } catch (e) {
-      print('Sync error: $e');
+      print('[HiveService] ❌ Sync error: $e');
       _updateSyncStatus(ownerPhone, success: false, error: e.toString());
       return false;
     } finally {

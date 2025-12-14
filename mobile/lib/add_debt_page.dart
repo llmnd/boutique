@@ -1093,7 +1093,7 @@ class _AddDebtPageState extends State<AddDebtPage> with TickerProviderStateMixin
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black;
     final textColorSecondary = isDark ? Colors.white70 : Colors.black54;
-    final borderColor = isDark ? Colors.white24 : Colors.black26;
+    final borderColor = isDark ? const Color(0xFF333333) : const Color(0xFFDDDDDD);
     
     // Couleur subtile mauve/violette
     const subtleAccent = Color.fromARGB(255, 167, 139, 250);

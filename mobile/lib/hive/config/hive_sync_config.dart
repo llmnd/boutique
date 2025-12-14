@@ -1,5 +1,5 @@
 import 'dart:math';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:boutique_mobile/config/api_config.dart';
 
 /// Configuration pour la synchronisation Hive + PostgreSQL
 /// Ce fichier contient tous les paramètres de configuration de sync
@@ -151,8 +151,8 @@ class HiveSyncConfig {
   static const bool USE_CACHE_FOR_GET = true;
 
   // ============= API URLs =============
-  /// Base URL de l'API backend (lue depuis .env)
-  static String get API_BASE_URL => dotenv.env['API_BASE_URL'] ?? 'https://decent-carola-llmnd-3709b8dc.koyeb.app/api';
+  /// Base URL de l'API backend (lue depuis ApiConfig)
+  static String get API_BASE_URL => ApiConfig.getBaseUrl();
 
   /// Endpoints de l'API
   static const String ENDPOINT_DEBTS = '/debts';
