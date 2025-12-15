@@ -342,15 +342,19 @@ router.get('/:id', async (req, res) => {
     
     // ✅ CORRIGÉ: L'utilisateur peut voir la dette s'il est:
     // 1. Le créancier (creditor) - celui qui l'a créée
-    // 2. Le client (via clients.phone) - celui pour qui elle a été créée
+    // 2. Un client de ce créancier (via clients.client_number)
+    // 3. Sinon, pas d'accès
     const result = await pool.query(
       `SELECT d.*, c.name as client_name, c.client_number FROM debts d
        LEFT JOIN clients c ON d.client_id = c.id
-       WHERE d.id = $1 AND (d.creditor = $2 OR c.client_number = $2)`, 
+       WHERE d.id = $1 AND (d.creditor = $2 OR (c.client_number = $2 AND d.creditor != $2))`, 
       [id, owner]
     );
     
-    if (result.rowCount === 0) return res.status(404).json({ error: 'Not found' });
+    if (result.rowCount === 0) {
+      console.log(`[DEBUG] GET /debts/${id}: Access denied for ${owner}`);
+      return res.status(404).json({ error: 'Not found' });
+    }
     
     const debt = result.rows[0];
     const balance = await calculateDebtBalance(id);
@@ -920,10 +924,13 @@ router.get('/:id/payments', async (req, res) => {
     const debtRes = await pool.query(
       `SELECT d.* FROM debts d
        LEFT JOIN clients c ON d.client_id = c.id
-       WHERE d.id = $1 AND (d.creditor = $2 OR c.client_number = $2)`,
+       WHERE d.id = $1 AND (d.creditor = $2 OR (c.client_number = $2 AND d.creditor != $2))`,
       [id, owner]
     );
-    if (debtRes.rowCount === 0) return res.status(404).json({ error: 'Debt not found' });
+    if (debtRes.rowCount === 0) {
+      console.log(`[DEBUG] GET /debts/${id}/payments: Access denied for ${owner}`);
+      return res.status(404).json({ error: 'Debt not found' });
+    }
 
     const result = await pool.query('SELECT * FROM payments WHERE debt_id=$1 ORDER BY paid_at DESC', [id]);
     res.json(result.rows);
