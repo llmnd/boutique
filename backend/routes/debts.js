@@ -854,11 +854,11 @@ router.post('/:id/pay', async (req, res) => {
   const { amount, paid_at, notes } = req.body;
   try {
     const owner = req.headers['x-owner'] || req.headers['X-Owner'] || process.env.BOUTIQUE_OWNER || 'owner';
-    // ensure debt belongs to owner - either creditor OR client (via client_number)
+    // ensure debt belongs to owner - either creditor OR client (via client_number) OR debtor
     const debtRes = await pool.query(
       `SELECT d.* FROM debts d
        LEFT JOIN clients c ON d.client_id = c.id
-       WHERE d.id = $1 AND (d.creditor = $2 OR c.client_number = $2)`,
+       WHERE d.id = $1 AND (d.creditor = $2 OR (c.client_number = $2 AND d.creditor != $2) OR d.debtor_phone = $2)`,
       [id, owner]
     );
     if (debtRes.rowCount === 0) return res.status(404).json({ error: 'Debt not found' });
@@ -999,9 +999,9 @@ router.post('/:id/add', async (req, res) => {
     const owner = req.headers['x-owner'] || req.headers['X-Owner'] || process.env.BOUTIQUE_OWNER || 'owner';
     
     // ✅ CORRIGÉ: Vérifier que l'utilisateur a le droit de modifier cette dette
-    // Soit il l'a créée (creditor), soit elle a été créée pour lui (client)
+    // Soit il l'a créée (creditor), soit elle a été créée pour lui (debtor_phone), soit elle est liée à un client qu'il a
     const debtRes = await pool.query(
-      `SELECT d.creditor, d.amount, d.type, c.client_number FROM debts d
+      `SELECT d.creditor, d.amount, d.type, d.debtor_phone, c.client_number FROM debts d
        LEFT JOIN clients c ON d.client_id = c.id
        WHERE d.id=$1`,
       [id]
@@ -1012,12 +1012,13 @@ router.post('/:id/add', async (req, res) => {
     const debt = debtRes.rows[0];
     const isCreatedByMe = debt.creditor === owner;
     const isClientOfDebt = debt.client_number && debt.client_number === owner;  // ✅ Vérifier que client_number existe
+    const isDebtorOfDebt = debt.debtor_phone === owner;  // ✅ Nouveau: l'utilisateur est le débiteur
     
-    console.log(`[ADD AMOUNT PERMISSION] debt=${id}, isCreatedByMe=${isCreatedByMe}, isClientOfDebt=${isClientOfDebt}, creditor=${debt.creditor}, client=${debt.client_number}, owner=${owner}`);
+    console.log(`[ADD AMOUNT PERMISSION] debt=${id}, isCreatedByMe=${isCreatedByMe}, isClientOfDebt=${isClientOfDebt}, isDebtorOfDebt=${isDebtorOfDebt}, creditor=${debt.creditor}, client=${debt.client_number}, debtor=${debt.debtor_phone}, owner=${owner}`);
     
-    // ✅ Vérifier les permissions: créateur OU client
-    if (!isCreatedByMe && !isClientOfDebt) {
-      console.log(`[PERMISSION] Denied: isCreatedByMe=${isCreatedByMe}, isClientOfDebt=${isClientOfDebt}, creditor=${debt.creditor}, client=${debt.client_number}, owner=${owner}`);
+    // ✅ Vérifier les permissions: créateur OU client OU débiteur
+    if (!isCreatedByMe && !isClientOfDebt && !isDebtorOfDebt) {
+      console.log(`[PERMISSION] Denied: isCreatedByMe=${isCreatedByMe}, isClientOfDebt=${isClientOfDebt}, isDebtorOfDebt=${isDebtorOfDebt}, creditor=${debt.creditor}, client=${debt.client_number}, debtor=${debt.debtor_phone}, owner=${owner}`);
       return res.status(403).json({ error: 'Forbidden - vous ne pouvez pas modifier cette dette' });
     }
 
@@ -1069,11 +1070,11 @@ router.get('/:id/additions', async (req, res) => {
   const { id } = req.params;
   try {
     const owner = req.headers['x-owner'] || req.headers['X-Owner'] || process.env.BOUTIQUE_OWNER || 'owner';
-    // ensure debt belongs to owner - either creditor OR client (via client_number)
+    // ensure debt belongs to owner - either creditor OR client (via client_number) OR debtor
     const debtRes = await pool.query(
       `SELECT d.* FROM debts d
        LEFT JOIN clients c ON d.client_id = c.id
-       WHERE d.id = $1 AND (d.creditor = $2 OR c.client_number = $2)`,
+       WHERE d.id = $1 AND (d.creditor = $2 OR (c.client_number = $2 AND d.creditor != $2) OR d.debtor_phone = $2)`,
       [id, owner]
     );
     if (debtRes.rowCount === 0) return res.status(404).json({ error: 'Debt not found' });
@@ -1183,7 +1184,7 @@ router.get('/:id/disputes', async (req, res) => {
     const debtRes = await pool.query(
       `SELECT d.* FROM debts d
        LEFT JOIN clients c ON d.client_id = c.id
-       WHERE d.id = $1 AND (d.creditor = $2 OR c.client_number = $2)`,
+       WHERE d.id = $1 AND (d.creditor = $2 OR (c.client_number = $2 AND d.creditor != $2) OR d.debtor_phone = $2)`,
       [id, owner]
     );
     if (debtRes.rowCount === 0) return res.status(404).json({ error: 'Debt not found' });

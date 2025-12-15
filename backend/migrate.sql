@@ -167,3 +167,11 @@ WHERE original_amount IS NOT NULL;
 -- - Use calculateDebtBalance() function to get total, additions, payments
 
 CREATE INDEX IF NOT EXISTS idx_debts_original_amount ON debts(original_amount);
+
+-- ✅ Migration 021: Add debtor_phone to track who owes the debt
+-- Objectif: Quand une dette est créée pour quelqu'un d'autre (via SMS),
+-- on sait qui la reçoit même s'il n'est pas un "client" du créancier
+ALTER TABLE debts ADD COLUMN IF NOT EXISTS debtor_phone TEXT;
+
+-- Index for fast lookups by debtor_phone
+CREATE INDEX IF NOT EXISTS idx_debts_debtor_phone ON debts(debtor_phone);

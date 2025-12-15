@@ -866,7 +866,9 @@ bool _hasConnection(List<ConnectivityResult> results) {
       final prefs = await SharedPreferences.getInstance();
       final debtsJson = prefs.getString('debts_${widget.ownerPhone}');
       if (debtsJson != null && debtsJson.isNotEmpty) {
-        setState(() => debts = List.from(json.decode(debtsJson) as List));
+        if (mounted) {
+          setState(() => debts = List.from(json.decode(debtsJson) as List));
+        }
       }
     } catch (e) {
       print('Error loading debts locally: $e');
@@ -888,7 +890,9 @@ bool _hasConnection(List<ConnectivityResult> results) {
       final prefs = await SharedPreferences.getInstance();
       final clientsJson = prefs.getString('clients_${widget.ownerPhone}');
       if (clientsJson != null && clientsJson.isNotEmpty) {
-        setState(() => clients = List.from(json.decode(clientsJson) as List));
+        if (mounted) {
+          setState(() => clients = List.from(json.decode(clientsJson) as List));
+        }
       }
     } catch (e) {
       print('Error loading clients locally: $e');
@@ -907,7 +911,9 @@ bool _hasConnection(List<ConnectivityResult> results) {
       ).timeout(const Duration(seconds: 8));
       
       if (res.statusCode == 200) {
-        setState(() => clients = json.decode(res.body) as List);
+        if (mounted) {
+          setState(() => clients = json.decode(res.body) as List);
+        }
         // ✅ NOUVEAU: Mettre à jour Hive pour garder le cache local synchronisé
         await _saveClientsLocally();
       }
@@ -1021,7 +1027,9 @@ bool _hasConnection(List<ConnectivityResult> results) {
         // Le remaining retourné par GET /debts est calculé en temps réel avec la formule:
         // remaining = (amount + total_additions) - total_payments
 
-        setState(() => debts = consolidatedDebts);
+        if (mounted) {
+          setState(() => debts = consolidatedDebts);
+        }
         // ✅ NOUVEAU: Mettre à jour Hive pour garder le cache local synchronisé
         await _saveDebtsLocally();
         print('[DEBUG] fetchDebts completed. Consolidated ${consolidatedDebts.length} debts');
