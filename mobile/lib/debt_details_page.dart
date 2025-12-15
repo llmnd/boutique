@@ -264,6 +264,20 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> with TickerProviderSt
       if (_debt['client_id'] != null) {
         await _loadClientInfo();
       }
+      // ✅ Afficher un snackbar de confirmation
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Paiement enregistré'),
+            backgroundColor: Colors.green,
+            duration: Duration(milliseconds: 1500),
+          ),
+        );
+        // ✅ Retourner immédiatement au main avec true pour rafraîchir
+        Future.delayed(const Duration(milliseconds: 800), () {
+          if (mounted) Navigator.pop(context, true);
+        });
+      }
     }
   }
 
@@ -282,6 +296,20 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> with TickerProviderSt
     if (result == true) {
       _changed = true;
       await _loadAllData();
+      // ✅ Afficher un snackbar de confirmation
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Montant ajouté'),
+            backgroundColor: Colors.green,
+            duration: Duration(milliseconds: 1500),
+          ),
+        );
+        // ✅ Retourner immédiatement au main avec true pour rafraîchir
+        Future.delayed(const Duration(milliseconds: 800), () {
+          if (mounted) Navigator.pop(context, true);
+        });
+      }
     }
   }
 
@@ -1713,46 +1741,47 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> with TickerProviderSt
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'AJOUTER DANS MES CONTACTS',
+                'Ajouter un contact',
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  letterSpacing: 1,
                   color: textColor,
+                  letterSpacing: 0.3,
                 ),
               ),
               const SizedBox(height: 8),
               Text(
-                'Choisissez le nom que vous voulez utiliser',
+                'Personnalisez le nom du contact à votre guise',
                 style: TextStyle(
                   fontSize: 12,
-                  fontWeight: FontWeight.w300,
                   color: textColorSecondary,
+                  fontWeight: FontWeight.w400,
                 ),
               ),
               const SizedBox(height: 20),
               TextField(
                 controller: nameCtl,
+                autofocus: true,
                 style: TextStyle(fontSize: 14, color: textColor),
                 decoration: InputDecoration(
-                  hintText: 'Ex: Papa, Papeeeee...',
+                  hintText: 'Ex: Papa, Ami, Collègue...',
                   hintStyle: TextStyle(color: borderColor),
                   border: OutlineInputBorder(
                     borderSide: BorderSide(color: borderColor, width: 0.5),
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(6),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderSide: BorderSide(color: borderColor, width: 0.5),
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(6),
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: Colors.blue, width: 1),
-                    borderRadius: BorderRadius.circular(4),
+                    borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 1),
+                    borderRadius: BorderRadius.circular(6),
                   ),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
@@ -1763,15 +1792,12 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> with TickerProviderSt
                     ),
                     child: const Text('ANNULER'),
                   ),
-                  const SizedBox(width: 8),
-                  TextButton(
+                  const SizedBox(width: 12),
+                  FilledButton(
                     onPressed: () {
                       Navigator.of(ctx).pop();
                       _addContactFromDebt(nameCtl.text.trim());
                     },
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.blue,
-                    ),
                     child: const Text('AJOUTER'),
                   ),
                 ],
@@ -1815,6 +1841,9 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> with TickerProviderSt
           _debt['display_creditor_name'] = customName.isNotEmpty ? customName : _debt['display_creditor_name'];
           _client = data;
         });
+        
+        // ✅ MARQUER COMME CHANGÉ POUR RAFRAÎCHIR LE MAIN
+        _changed = true;
         
         // Recharger les données
         await _loadAllData();
@@ -2009,58 +2038,98 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> with TickerProviderSt
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Ligne avec avatar et nom du client
+                // Ligne avec avatar et nom du client - MINIMALISTE
                 Row(
                   children: [
                     // Avatar du client
                     _buildClientAvatar(),
                     const SizedBox(width: 16),
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          // ✅ NOM ÉLÉGANT (EN HAUT) - style titre
-                          Text(
-                            displayName,
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w500,
-                              color: textColor,
-                              letterSpacing: 0.2,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          // ✅ NUMÉRO EN BAS - beau et lisible (toujours affiché)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 6),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                              decoration: BoxDecoration(
-                                color: Theme.of(context).colorScheme.primary.withOpacity(0.08),
-                                borderRadius: BorderRadius.circular(4),
-                                border: Border.all(
-                                  color: Theme.of(context).colorScheme.primary.withOpacity(0.15),
-                                  width: 0.5,
-                                ),
-                              ),
-                              child: Text(
-                                displayPhone ?? _getTermClient(),
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Theme.of(context).colorScheme.primary,
-                                  fontWeight: FontWeight.w500,
-                                  letterSpacing: 0.3,
-                                  fontFamily: 'monospace',
-                                ),
-                              ),
-                            ),
-                          )],
+                      child: Text(
+                        displayName,
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w600,
+                          color: textColor,
+                          letterSpacing: 0.3,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    if (dueDate != null) _buildDueDateWidget(dueDate),
                   ],
+                ),
+                const SizedBox(height: 16),
+                
+                // ✅ INFO MINIMALISTE EN BAS : Numéro + Date d'échéance
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary.withOpacity(0.06),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.primary.withOpacity(0.12),
+                      width: 0.5,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Numéro du client
+                      if (displayPhone != null)
+                        Flexible(
+                          child: Text(
+                            displayPhone!,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontFamily: 'monospace',
+                              color: textColor,
+                              fontWeight: FontWeight.w500,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                      // Séparateur
+                      if (displayPhone != null && dueDate != null)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: Container(
+                            width: 1,
+                            height: 16,
+                            color: borderColor,
+                          ),
+                        ),
+                      // Label intelligent + Date
+                      if (dueDate != null)
+                        Flexible(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                _getDueDateIcon(dueDate),
+                                size: 14,
+                                color: _getDueDateColor(dueDate),
+                              ),
+                              const SizedBox(width: 6),
+                              Flexible(
+                                child: Text(
+                                  _getDueDateLabel(dueDate),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: _getDueDateColor(dueDate),
+                                    letterSpacing: 0.2,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 20),
                 
@@ -2280,8 +2349,8 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> with TickerProviderSt
             ],
           ),
           
-          // ✅ NOUVEAU : Bouton "Ajouter dans mes contacts" si créé par quelqu'un d'autre
-          if (createdByOther && (_client == null || _client?.isEmpty == true))
+          // ✅ NOUVEAU : Bouton "Ajouter dans mes contacts" si créé par quelqu'un d'autre - TOUJOURS VISIBLE
+          if (createdByOther)
             Padding(
               padding: const EdgeInsets.only(top: 12),
               child: Container(
@@ -2302,9 +2371,11 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> with TickerProviderSt
                     size: 18,
                     color: Colors.blue,
                   ),
-                  label: const Text(
-                    'AJOUTER DANS MES CONTACTS',
-                    style: TextStyle(
+                  label: Text(
+                    (_client != null && _client!.isNotEmpty) 
+                      ? 'MODIFIER LE CONTACT' 
+                      : 'AJOUTER DANS MES CONTACTS',
+                    style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 0.3,
@@ -3031,6 +3102,47 @@ class _DebtDetailsPageState extends State<DebtDetailsPage> with TickerProviderSt
       } catch (e) {
         _showSnackbar('Erreur: $e');
       }
+    }
+  }
+
+  // ✅ NOUVEAU : Obtenir la couleur intelligente de la date d'échéance
+  Color _getDueDateColor(DateTime dueDate) {
+    final now = DateTime.now();
+    final difference = dueDate.difference(now);
+    final days = difference.inDays;
+    
+    if (days < 0) return Colors.red;           // En retard
+    if (days == 0) return Colors.orange;       // Aujourd'hui
+    if (days <= 7) return Colors.orange;       // Cette semaine
+    return Theme.of(context).colorScheme.primary; // Plus tard
+  }
+
+  // ✅ NOUVEAU : Obtenir l'icône intelligente de la date d'échéance
+  IconData _getDueDateIcon(DateTime dueDate) {
+    final now = DateTime.now();
+    final difference = dueDate.difference(now);
+    final days = difference.inDays;
+    
+    if (days < 0) return Icons.error_outline;      // En retard
+    if (days == 0) return Icons.today;             // Aujourd'hui
+    if (days <= 7) return Icons.schedule;          // Cette semaine
+    return Icons.calendar_today;                   // Plus tard
+  }
+
+  // ✅ NOUVEAU : Obtenir le label intelligent de la date d'échéance
+  String _getDueDateLabel(DateTime dueDate) {
+    final now = DateTime.now();
+    final difference = dueDate.difference(now);
+    final days = difference.inDays;
+    
+    if (days < 0) {
+      return '${days.abs()} j en retard';
+    } else if (days == 0) {
+      return 'Aujourd\'hui';
+    } else if (days <= 7) {
+      return 'Dans $days j';
+    } else {
+      return DateFormat('dd/MM/yyyy').format(dueDate);
     }
   }
 

@@ -256,6 +256,22 @@ router.get('/', async (req, res) => {
       const balance = await calculateDebtBalance(d.id);
       const isCreatedByMe = d.creditor === owner;
       
+      // ✅ NOUVEAU: Récupérer le timestamp du dernier événement (paiement ou ajout)
+      // Pour que la consolidation en front détecte les dettes modifiées
+      let lastEventTs = d.created_at; // Fallback
+      try {
+        const eventRes = await pool.query(
+          `(SELECT MAX(paid_at) as ts FROM payments WHERE debt_id=$1)
+           UNION ALL
+           (SELECT MAX(added_at) as ts FROM debt_additions WHERE debt_id=$1)
+           ORDER BY ts DESC LIMIT 1`,
+          [d.id]
+        );
+        if (eventRes.rowCount > 0 && eventRes.rows[0].ts) {
+          lastEventTs = eventRes.rows[0].ts;
+        }
+      } catch (e) { console.error('Error getting last event ts:', e); }
+      
       // ✅ NOUVEAU: Inverser le type si la dette a été créée par quelqu'un d'autre
       let displayType = d.type;
       if (!isCreatedByMe) {
@@ -307,7 +323,8 @@ router.get('/', async (req, res) => {
         display_creditor_name: displayCreditorName,
         display_client_name: displayClientName,
         creditor_phone: d.creditor,
-        merged_contact: mergedContactInfo // ✅ Info de fusion pour debug
+        merged_contact: mergedContactInfo, // ✅ Info de fusion pour debug
+        last_event_at: lastEventTs // ✅ NOUVEAU: Timestamp du dernier paiement/ajout pour consolidation
       });
     }
     res.json(debts);
@@ -338,6 +355,21 @@ router.get('/:id', async (req, res) => {
     const debt = result.rows[0];
     const balance = await calculateDebtBalance(id);
     const isCreatedByMe = debt.creditor === owner;
+    
+    // ✅ NOUVEAU: Récupérer le timestamp du dernier événement (paiement ou ajout)
+    let lastEventTs = debt.created_at; // Fallback
+    try {
+      const eventRes = await pool.query(
+        `(SELECT MAX(paid_at) as ts FROM payments WHERE debt_id=$1)
+         UNION ALL
+         (SELECT MAX(added_at) as ts FROM debt_additions WHERE debt_id=$1)
+         ORDER BY ts DESC LIMIT 1`,
+        [id]
+      );
+      if (eventRes.rowCount > 0 && eventRes.rows[0].ts) {
+        lastEventTs = eventRes.rows[0].ts;
+      }
+    } catch (e) { console.error('Error getting last event ts:', e); }
     
     // ✅ NOUVEAU: Inverser le type si la dette a été créée par quelqu'un d'autre
     let displayType = debt.type;
@@ -386,7 +418,8 @@ router.get('/:id', async (req, res) => {
       display_creditor_name: displayCreditorName,
       display_client_name: displayClientName,
       creditor_phone: debt.creditor,
-      merged_contact: mergedContactInfo
+      merged_contact: mergedContactInfo,
+      last_event_at: lastEventTs // ✅ NOUVEAU: Timestamp du dernier paiement/ajout
     });
   } catch (err) {
     console.error(err);

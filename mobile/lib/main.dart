@@ -908,6 +908,8 @@ bool _hasConnection(List<ConnectivityResult> results) {
       
       if (res.statusCode == 200) {
         setState(() => clients = json.decode(res.body) as List);
+        // ✅ NOUVEAU: Mettre à jour Hive pour garder le cache local synchronisé
+        await _saveClientsLocally();
       }
     } on TimeoutException {
       print('Timeout fetching clients');
@@ -937,7 +939,19 @@ bool _hasConnection(List<ConnectivityResult> results) {
 
         double tsForDebt(dynamic debt) {
           if (debt == null) return 0.0;
-          // Priorité aux champs de timestamp usuels
+          // ✅ PRIORITÉ 1: Utiliser le timestamp du dernier événement (paiement/ajout)
+          // pour détecter les dettes modifiées après leur création
+          final lastEvent = debt['last_event_at'];
+          if (lastEvent != null) {
+            if (lastEvent is String) {
+              final dt = DateTime.tryParse(lastEvent);
+              if (dt != null) return dt.millisecondsSinceEpoch.toDouble();
+            } else if (lastEvent is int) {
+              return lastEvent.toDouble();
+            }
+          }
+          
+          // Fallback aux champs de timestamp usuels
           final List<String> tsFields = ['updated_at', 'added_at', 'created_at', 'createdAt', 'date'];
           for (final f in tsFields) {
             final v = debt[f];
@@ -1001,56 +1015,16 @@ bool _hasConnection(List<ConnectivityResult> results) {
           }).toList();
         }
 
-        // Pour garantir la cohérence avec `DebtDetailsPage`, récupérer les paiements ET additions
-        // pour chaque dette consolidée et recalculer `remaining` = (amount + additions) - sum(payments).
-        try {
-          final List<Future<void>> jobs = [];
-          for (final debt in consolidatedDebts) {
-            jobs.add(() async {
-              try {
-                final id = debt['id'];
-                if (id == null) return;
-                
-                // Récupérer paiements ET additions en parallèle
-                final paymentsFuture = http.get(
-                  Uri.parse('$apiHost/debts/$id/payments'),
-                  headers: headers,
-                ).timeout(const Duration(seconds: 8));
-                
-                final additionsFuture = http.get(
-                  Uri.parse('$apiHost/debts/$id/additions'),
-                  headers: headers,
-                ).timeout(const Duration(seconds: 8));
-                
-                final responses = await Future.wait([paymentsFuture, additionsFuture]);
-                
-                // Traiter les additions d'abord
-                if (responses[1].statusCode == 200) {
-                  final additionsList = json.decode(responses[1].body) as List;
-                  // Calculer et stocker le total des additions
-                  double totalAdditions = 0.0;
-                  for (final addition in additionsList) {
-                    totalAdditions += HomePageMethods.parseDouble(addition['amount']);
-                  }
-                  debt['total_additions'] = totalAdditions;
-                }
-                
-                // Puis recalculer remaining avec paiements + additions
-                if (responses[0].statusCode == 200) {
-                  final paymentsList = json.decode(responses[0].body) as List;
-                  // Recalculer remaining : (amount + additions) - payments
-                  final newRem = HomePageMethods.calculateRemainingFromPayments(debt, paymentsList);
-                  debt['remaining'] = newRem;
-                }
-              } catch (_) {
-                // ignore fetch errors - on garde le remaining fourni par l'API
-              }
-            }());
-          }
-          await Future.wait(jobs);
-        } catch (_) {}
+        // ✅ OPTIMISATION: Le backend retourne déjà les valeurs correctes de remaining,
+        // total_additions, et total_debt via calculateDebtBalance(). 
+        // On FAIT CONFIANCE au backend pour éviter de surcharger le réseau avec des appels supplémentaires.
+        // Le remaining retourné par GET /debts est calculé en temps réel avec la formule:
+        // remaining = (amount + total_additions) - total_payments
 
         setState(() => debts = consolidatedDebts);
+        // ✅ NOUVEAU: Mettre à jour Hive pour garder le cache local synchronisé
+        await _saveDebtsLocally();
+        print('[DEBUG] fetchDebts completed. Consolidated ${consolidatedDebts.length} debts');
       }
     } on TimeoutException {
       print('Timeout fetching debts');
@@ -1411,10 +1385,29 @@ final choice = await showModalBottomSheet<String>(
   }
 
   Future showDebtDetails(Map d) async {
+    print('[DEBUG] Opening DebtDetailsPage with debt: ${d['id']}, remaining: ${d['remaining']}');
     final res = await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => DebtDetailsPage(ownerPhone: widget.ownerPhone, debt: d)),
     );
-    if (res == true) await fetchDebts();
+    print('[DEBUG] DebtDetailsPage returned: $res');
+    // ✅ RECHARGER COMPLÈTEMENT APRÈS TOUTE FERMETURE DE LA PAGE
+    if (res == true) {
+      print('[DEBUG] Reloading data after debt details...');
+      // Recharger sans cache - forcer une nouvelle requête HTTP complète
+      await fetchClients();  // Recharger les clients aussi
+      print('[DEBUG] Clients reloaded. Count: ${clients.length}');
+      await fetchDebts();    // Recharger les dettes
+      print('[DEBUG] Debts reloaded. Count: ${debts.length}. New remaining values:');
+      for (final d in debts.take(3)) {
+        print('  - Debt ${d['id']}: remaining=${d['remaining']}');
+      }
+      // ✅ FORCER UNE RECONSTRUCTION DU WIDGET pour invalider tout cache local
+      if (mounted) {
+        print('[DEBUG] Calling setState to rebuild...');
+        setState(() {});
+        print('[DEBUG] setState completed');
+      }
+    }
   }
 
   // ✨ NOUVEAU : Modifier un client
@@ -2304,8 +2297,9 @@ final choice = await showModalBottomSheet<String>(
                                 padding: const EdgeInsets.only(top: 6),
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    // ✅ NUMÉRO À GAUCHE
+                                    // ✅ NUMÉRO À GAUCHE - seulement si pas dans les contacts
                                     if (clientPhone != null && clientPhone.isNotEmpty && client == null)
                                       Flexible(
                                         child: Container(
@@ -2332,7 +2326,10 @@ final choice = await showModalBottomSheet<String>(
                                           ),
                                         ),
                                       ),
-                                    // ✅ DATE À DROITE
+                                    // ✅ ESPACEMENT ADAPTATIF
+                                    if (clientPhone != null && clientPhone.isNotEmpty && client == null && latestDebt != null && latestDebt?['due_date'] != null)
+                                      const SizedBox(width: 8),
+                                    // ✅ DATE À DROITE - ou centrée si pas de numéro
                                     if (latestDebt != null && latestDebt?['due_date'] != null)
                                       Builder(
                                         builder: (_) {
