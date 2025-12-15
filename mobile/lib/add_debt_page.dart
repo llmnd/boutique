@@ -102,7 +102,7 @@ class _AddDebtPageState extends State<AddDebtPage> with TickerProviderStateMixin
     final nameCtl = TextEditingController();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black;
-    final textColorSecondary = isDark ? Colors.white70 : Colors.black54;
+    final textColorSecondary = isDark ? const Color.fromARGB(179, 241, 241, 241) : Colors.black54;
     final borderColor = isDark ? Colors.white24 : Colors.black26;
     
     // Charger les pays
