@@ -27,11 +27,3 @@ jobs:
         run: |
           cd mobile
           flutter build web --release
-
-      - name: Commit and push build
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add mobile/build/web
-          git commit -m "Build: Flutter web build [skip ci]" || echo "No changes to commit"
-          git push origin main || echo "Push failed"
