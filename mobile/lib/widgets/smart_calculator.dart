@@ -22,8 +22,9 @@ class _SmartCalculatorState extends State<SmartCalculator> {
   String _display = '0';
   String _fullExpression = '';
   List<String> _expressionParts = [];
-  double _result = 0;
+  double _storedResult = 0; // Résultat stocké pour le cumul
   String _lastOperation = '';
+  bool _shouldStartNewExpression = false; // Nouveau flag pour gérer le cumul
 
   bool _newNumber = true;
   bool _justCalculated = false;
@@ -39,6 +40,7 @@ class _SmartCalculatorState extends State<SmartCalculator> {
       _display = _formatNumber(widget.initialValue!);
       _fullExpression = _display;
       _expressionParts = [_display];
+      _storedResult = widget.initialValue!;
     }
   }
 
@@ -55,10 +57,16 @@ class _SmartCalculatorState extends State<SmartCalculator> {
   void _handleNumber(String n) {
     setState(() {
       if (_justCalculated) {
-        _resetAfterCalculation();
-      }
-
-      if (_newNumber || _display == '0') {
+        // Après calcul, si on tape un chiffre, on démarre une nouvelle expression
+        _display = n;
+        _fullExpression = n;
+        _expressionParts = [n];
+        _justCalculated = false;
+        _newNumber = false;
+        _hasDecimal = false;
+        _lastOperation = '';
+        _shouldStartNewExpression = false; // Réinitialiser le flag
+      } else if (_newNumber || _display == '0') {
         _display = n;
         _newNumber = false;
         _lastOperation = '';
@@ -82,24 +90,18 @@ class _SmartCalculatorState extends State<SmartCalculator> {
     });
   }
 
-  /* ================= RÉINITIALISATION APRÈS CALCUL ================= */
-
-  void _resetAfterCalculation() {
-    _display = '0';
-    _fullExpression = '';
-    _expressionParts = [];
-    _result = 0;
-    _lastOperation = '';
-    _justCalculated = false;
-    _newNumber = true;
-    _hasDecimal = false;
-  }
-
   /* ================= POINT DÉCIMAL ================= */
 
   void _handleDecimal() {
     if (_justCalculated) {
-      _resetAfterCalculation();
+      _display = '0';
+      _fullExpression = '';
+      _expressionParts = [];
+      _justCalculated = false;
+      _newNumber = true;
+      _hasDecimal = false;
+      _lastOperation = '';
+      _shouldStartNewExpression = false;
     }
 
     if (!_hasDecimal) {
@@ -132,31 +134,42 @@ class _SmartCalculatorState extends State<SmartCalculator> {
   void _handleOperation(String op) {
     setState(() {
       if (_justCalculated) {
-        // Après un calcul, on commence une nouvelle expression avec le résultat
-        _expressionParts = [_display];
+        // CORRECTION CRUCIALE : Après calcul, on utilise le résultat comme premier nombre
+        _expressionParts = [_display]; // Le résultat devient le premier nombre
+        _expressionParts.add(op); // Ajouter l'opération
         _justCalculated = false;
         _newNumber = true;
         _hasDecimal = false;
         _lastOperation = op;
-        _display = '0'; // CORRECTION : Réinitialiser l'affichage
+        _display = '0';
+        _shouldStartNewExpression = false; // On continue avec le résultat
+      } else if (_shouldStartNewExpression) {
+        // Si on a cliqué sur C ou CE, on démarre une nouvelle expression
+        _expressionParts = [_display];
+        _expressionParts.add(op);
+        _newNumber = true;
+        _hasDecimal = false;
+        _lastOperation = op;
+        _display = '0';
+        _shouldStartNewExpression = false;
       } else if (_newNumber && _expressionParts.isNotEmpty && 
                  _isOperation(_expressionParts.last)) {
-        // Si on appuie sur une opération sans nouveau nombre, on change l'opération
+        // Changer l'opération
         _expressionParts[_expressionParts.length - 1] = op;
         _lastOperation = op;
-        _display = '0'; // CORRECTION : Réinitialiser l'affichage
+        _display = '0';
       } else if (!_newNumber) {
         // Ajouter l'opération après un nombre
         _expressionParts.add(op);
         _newNumber = true;
         _hasDecimal = false;
         _lastOperation = op;
-        _display = '0'; // CORRECTION : Réinitialiser l'affichage après opération
+        _display = '0';
       } else if (_expressionParts.isNotEmpty && !_isOperation(_expressionParts.last)) {
-        // Si on a un nombre mais _newNumber est vrai (après une opération)
+        // Si on a un nombre mais _newNumber est vrai
         _expressionParts.add(op);
         _lastOperation = op;
-        _display = '0'; // CORRECTION : Réinitialiser l'affichage
+        _display = '0';
       }
       
       _updateFullExpression();
@@ -239,8 +252,8 @@ class _SmartCalculatorState extends State<SmartCalculator> {
       }
       
       setState(() {
-        _result = total;
-        _display = _formatNumber(_result);
+        _storedResult = total; // Stocker le résultat
+        _display = _formatNumber(_storedResult);
         _lastOperation = '';
         
         String historyExpression = _fullExpression;
@@ -253,6 +266,7 @@ class _SmartCalculatorState extends State<SmartCalculator> {
         
         if (_history.length > 20) _history.removeLast();
         
+        // IMPORTANT : Garder le résultat dans l'expression pour le cumul
         _fullExpression = _display;
         _expressionParts = [_display];
         _newNumber = true;
@@ -276,11 +290,12 @@ class _SmartCalculatorState extends State<SmartCalculator> {
       _display = '0';
       _fullExpression = '';
       _expressionParts = [];
-      _result = 0;
+      _storedResult = 0;
       _lastOperation = '';
       _newNumber = true;
       _hasDecimal = false;
       _justCalculated = false;
+      _shouldStartNewExpression = true; // Marquer pour nouvelle expression
     });
   }
 
@@ -345,7 +360,7 @@ class _SmartCalculatorState extends State<SmartCalculator> {
     VoidCallback onTap, {
     Color? bg,
     Color? fg,
-    double size = 24,
+    double size = 26, // Augmenté
     bool isActive = false,
   }) {
     return AnimatedContainer(
@@ -392,7 +407,7 @@ class _SmartCalculatorState extends State<SmartCalculator> {
   Widget _buildDisplay(Color txt) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      constraints: const BoxConstraints(minHeight: 100, maxHeight: 120),
+      constraints: const BoxConstraints(minHeight: 120, maxHeight: 140),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         mainAxisAlignment: MainAxisAlignment.end,
@@ -408,16 +423,15 @@ class _SmartCalculatorState extends State<SmartCalculator> {
                     Text(
                       _fullExpression,
                       style: TextStyle(
-                        fontSize: 18,
+                        fontSize: 22,
                         color: txt.withOpacity(0.5),
                       ),
                     ),
-                    // Afficher l'opération active à la fin si elle existe
                     if (_lastOperation.isNotEmpty)
                       Text(
                         ' $_lastOperation',
                         style: TextStyle(
-                          fontSize: 18,
+                          fontSize: 22,
                           color: txt,
                           fontWeight: FontWeight.bold,
                         ),
@@ -426,7 +440,7 @@ class _SmartCalculatorState extends State<SmartCalculator> {
                 ),
               ),
             ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           Flexible(
             child: FittedBox(
               fit: BoxFit.scaleDown,
@@ -434,7 +448,7 @@ class _SmartCalculatorState extends State<SmartCalculator> {
               child: Text(
                 _display,
                 style: TextStyle(
-                  fontSize: 48,
+                  fontSize: 64,
                   fontWeight: FontWeight.w300,
                   color: txt,
                 ),
@@ -461,12 +475,12 @@ class _SmartCalculatorState extends State<SmartCalculator> {
                 'Historique',
                 style: TextStyle(
                   color: txt,
-                  fontSize: 18,
+                  fontSize: 22,
                   fontWeight: FontWeight.w500,
                 ),
               ),
               IconButton(
-                icon: const Icon(Icons.close, size: 22),
+                icon: const Icon(Icons.close, size: 24),
                 color: txt,
                 onPressed: () => setState(() => _showHistory = false),
                 padding: EdgeInsets.zero,
@@ -474,13 +488,16 @@ class _SmartCalculatorState extends State<SmartCalculator> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           Expanded(
             child: _history.isEmpty
                 ? Center(
                     child: Text(
                       'Aucun historique',
-                      style: TextStyle(color: txt.withOpacity(0.5)),
+                      style: TextStyle(
+                        color: txt.withOpacity(0.5),
+                        fontSize: 18,
+                      ),
                     ),
                   )
                 : ListView.builder(
@@ -488,7 +505,7 @@ class _SmartCalculatorState extends State<SmartCalculator> {
                     itemBuilder: (context, index) {
                       final entry = _history[index];
                       return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
@@ -497,7 +514,7 @@ class _SmartCalculatorState extends State<SmartCalculator> {
                               textAlign: TextAlign.right,
                               style: TextStyle(
                                 color: txt.withOpacity(0.7),
-                                fontSize: 16,
+                                fontSize: 18,
                               ),
                             ),
                             Text(
@@ -505,7 +522,7 @@ class _SmartCalculatorState extends State<SmartCalculator> {
                               textAlign: TextAlign.right,
                               style: TextStyle(
                                 color: txt,
-                                fontSize: 20,
+                                fontSize: 22,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -545,14 +562,12 @@ class _SmartCalculatorState extends State<SmartCalculator> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
       child: ConstrainedBox(
         constraints: const BoxConstraints(
-          maxHeight: 600,
+          maxHeight: 620,
           maxWidth: 380,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            /* ================= EN-TÊTE ================= */
-
             Padding(
               padding: const EdgeInsets.all(12),
               child: Row(
@@ -561,7 +576,7 @@ class _SmartCalculatorState extends State<SmartCalculator> {
                   IconButton(
                     icon: Icon(
                       _showHistory ? Icons.calculate : Icons.history,
-                      size: 22,
+                      size: 24,
                     ),
                     color: txt,
                     onPressed: () => setState(() => _showHistory = !_showHistory),
@@ -569,7 +584,7 @@ class _SmartCalculatorState extends State<SmartCalculator> {
                     constraints: const BoxConstraints(),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close, size: 22),
+                    icon: const Icon(Icons.close, size: 24),
                     color: txt,
                     onPressed: () => Navigator.pop(context),
                     padding: EdgeInsets.zero,
@@ -579,13 +594,9 @@ class _SmartCalculatorState extends State<SmartCalculator> {
               ),
             ),
 
-            /* ================= AFFICHAGE / HISTORIQUE ================= */
-
             Expanded(
               child: _showHistory ? _buildHistory(txt) : _buildDisplay(txt),
             ),
-
-            /* ================= GRILLE DE BOUTONS ================= */
 
             if (!_showHistory)
               Padding(
@@ -593,7 +604,6 @@ class _SmartCalculatorState extends State<SmartCalculator> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Première ligne - Actions
                     SizedBox(
                       height: 50,
                       child: Row(
@@ -617,6 +627,7 @@ class _SmartCalculatorState extends State<SmartCalculator> {
                               bg: op, 
                               fg: Colors.white,
                               isActive: isDivideActive,
+                              size: 26,
                             ),
                           ),
                         ],
@@ -624,7 +635,6 @@ class _SmartCalculatorState extends State<SmartCalculator> {
                     ),
                     const SizedBox(height: 10),
 
-                    // Grille numérique
                     GridView.count(
                       crossAxisCount: 4,
                       shrinkWrap: true,
@@ -633,61 +643,60 @@ class _SmartCalculatorState extends State<SmartCalculator> {
                       crossAxisSpacing: 10,
                       childAspectRatio: 1.0,
                       children: [
-                        // Ligne 1
-                        _btn('7', () => _handleNumber('7'), bg: btn, fg: txt),
-                        _btn('8', () => _handleNumber('8'), bg: btn, fg: txt),
-                        _btn('9', () => _handleNumber('9'), bg: btn, fg: txt),
+                        _btn('7', () => _handleNumber('7'), bg: btn, fg: txt, size: 26),
+                        _btn('8', () => _handleNumber('8'), bg: btn, fg: txt, size: 26),
+                        _btn('9', () => _handleNumber('9'), bg: btn, fg: txt, size: 26),
                         _btn(
                           '×', 
                           () => _handleOperation('×'), 
                           bg: op, 
                           fg: Colors.white,
                           isActive: isMultiplyActive,
+                          size: 26,
                         ),
 
-                        // Ligne 2
-                        _btn('4', () => _handleNumber('4'), bg: btn, fg: txt),
-                        _btn('5', () => _handleNumber('5'), bg: btn, fg: txt),
-                        _btn('6', () => _handleNumber('6'), bg: btn, fg: txt),
+                        _btn('4', () => _handleNumber('4'), bg: btn, fg: txt, size: 26),
+                        _btn('5', () => _handleNumber('5'), bg: btn, fg: txt, size: 26),
+                        _btn('6', () => _handleNumber('6'), bg: btn, fg: txt, size: 26),
                         _btn(
                           '-', 
                           () => _handleOperation('-'), 
                           bg: op, 
                           fg: Colors.white,
                           isActive: isMinusActive,
+                          size: 26,
                         ),
 
-                        // Ligne 3
-                        _btn('1', () => _handleNumber('1'), bg: btn, fg: txt),
-                        _btn('2', () => _handleNumber('2'), bg: btn, fg: txt),
-                        _btn('3', () => _handleNumber('3'), bg: btn, fg: txt),
+                        _btn('1', () => _handleNumber('1'), bg: btn, fg: txt, size: 26),
+                        _btn('2', () => _handleNumber('2'), bg: btn, fg: txt, size: 26),
+                        _btn('3', () => _handleNumber('3'), bg: btn, fg: txt, size: 26),
                         _btn(
                           '+', 
                           () => _handleOperation('+'), 
                           bg: op, 
                           fg: Colors.white,
                           isActive: isPlusActive,
+                          size: 26,
                         ),
 
-                        // Ligne 4
-                        _btn('0', () => _handleNumber('0'), bg: btn, fg: txt),
-                        _btn('.', _handleDecimal, bg: btn, fg: txt),
+                        _btn('0', () => _handleNumber('0'), bg: btn, fg: txt, size: 26),
+                        _btn('.', _handleDecimal, bg: btn, fg: txt, size: 26),
                         _btn(
                           '%', 
                           () => _handleOperation('%'), 
                           bg: btn, 
                           fg: txt,
                           isActive: isPercentActive,
+                          size: 26,
                         ),
-                        _btn('=', _calculate, bg: result, fg: Colors.white),
+                        _btn('=', _calculate, bg: result, fg: Colors.white, size: 26),
                       ],
                     ),
                     const SizedBox(height: 12),
 
-                    // Bouton OK
                     SizedBox(
                       width: double.infinity,
-                      height: 48,
+                      height: 50,
                       child: ElevatedButton(
                         onPressed: _selectResult,
                         style: ElevatedButton.styleFrom(
@@ -702,7 +711,7 @@ class _SmartCalculatorState extends State<SmartCalculator> {
                         child: const Text(
                           'OK',
                           style: TextStyle(
-                            fontSize: 18,
+                            fontSize: 20,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
