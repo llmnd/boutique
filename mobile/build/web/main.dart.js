@@ -31931,7 +31931,7 @@ aVQ(a){return B.eu(0,A.n.S((isNaN(a)||a==1/0||a==-1/0?0:a)*1000))},
 cp(){var s=$.aSS()
 if(!s.a)B.a9(new B.RO())
 s=s.b.h(0,"API_BASE_URL")
-return s==null?"https://decent-carola-llmnd-3709b8dc.koyeb.app/api":s},
+return s==null?"https://vocal-fernandina-llmndg-0b759290.koyeb.app/api":s},
 aeD(a,b){var s=0,r=B.w(t.q8),q,p
 var $async$aeD=B.x(function(c,d){if(c===1)return B.t(d,r)
 for(;;)switch(s){case 0:s=$.aeC==null?3:4
