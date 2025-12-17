@@ -1,5 +1,5 @@
 {
-  "buildCommand": "cd mobile && flutter build web",
+  "buildCommand": "echo 'Build done locally'",
   "outputDirectory": "mobile/build/web",
   "headers": [
     {
