@@ -1,0 +1,15 @@
+mobile/
+.git/
+.github/
+docs/
+scripts/
+screenshots/
+backend/
+dist/
+node_modules/
+.env
+.env.local
+.vscode/
+.idea/
+.DS_Store
+*.md
