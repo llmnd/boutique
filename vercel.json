@@ -1,6 +1,6 @@
 {
-  "buildCommand": "node build-copy.js",
-  "outputDirectory": "build/web",
+  "buildCommand": "cd mobile && flutter build web",
+  "outputDirectory": "mobile/build/web",
   "headers": [
     {
       "source": "/downloads/(.*)",
