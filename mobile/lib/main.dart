@@ -26,7 +26,6 @@ import 'add_addition_page.dart';
 import 'debt_details_page.dart';
 import 'theme.dart';
 import 'utils/methods_extraction.dart';
-import 'widgets/boutique_logo.dart';
 
 // Theme colors (deprecated - use Theme.of(context) instead)
 const Color kBackground = Color(0xFF0F1113);

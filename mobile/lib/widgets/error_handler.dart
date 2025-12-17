@@ -67,11 +67,11 @@ class ErrorScreen extends StatelessWidget {
   final String? details;
 
   const ErrorScreen({
-    Key? key,
+    super.key,
     required this.message,
     this.onRetry,
     this.details,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

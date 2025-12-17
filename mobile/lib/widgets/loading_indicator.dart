@@ -7,10 +7,10 @@ class LoadingIndicator extends StatelessWidget {
   final bool isLoading;
 
   const LoadingIndicator({
-    Key? key,
+    super.key,
     this.message,
     this.isLoading = true,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -52,11 +52,11 @@ class LoadingWrapper extends StatelessWidget {
   final String? loadingMessage;
 
   const LoadingWrapper({
-    Key? key,
+    super.key,
     required this.isLoading,
     required this.child,
     this.loadingMessage = 'Chargement...',
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -77,7 +77,7 @@ class LoadingWrapper extends StatelessWidget {
 class QuickLoader extends StatelessWidget {
   final bool isVisible;
 
-  const QuickLoader({Key? key, this.isVisible = true}) : super(key: key);
+  const QuickLoader({super.key, this.isVisible = true});
 
   @override
   Widget build(BuildContext context) {
