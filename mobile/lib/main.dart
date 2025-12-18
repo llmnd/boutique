@@ -18,7 +18,6 @@ import 'hive/hive_service_manager.dart';
 import 'team_screen.dart';
 import 'app_settings.dart';
 import 'settings_screen.dart';
-import 'screens/splash_screen.dart';
 import 'quick_login_page.dart';
 import 'returning_user_page.dart';
 import 'services/pin_auth_offline_service.dart';
@@ -431,10 +430,9 @@ class _MyAppState extends State<MyApp> {
               : HomePage(ownerPhone: ownerPhone!, ownerShopName: ownerShopName, onLogout: clearOwner, hasPinSet: cachedHasPinForReturning ?? false),
     );
 
-    // ✅ Show splash screen on first load, then switch to main app
-    return ownerPhone == null && shouldShowPinEntry != true 
-        ? SplashScreen(nextScreen: mainApp)
-        : mainApp;
+    // ✅ Ne pas utiliser SplashScreen - le splash est géré dans main.dart directement
+    // Les transitions sont gérées par MaterialApp qui fournit le contexte Navigator
+    return mainApp;
   }
 }
 
@@ -500,10 +498,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     // ⬇️ NOUVEAU: Lancer les requêtes avec un timeout très court (2s) pour PWA
     // et garantir que _isLoading devient false rapidement
     Future.wait([
-      fetchClients().catchError((e) { print('fetchClients error: $e'); }),
-      fetchDebts().catchError((e) { print('fetchDebts error: $e'); }),
+      fetchClients().catchError((e) { print('fetchClients error: $e'); return null; }),
+      fetchDebts().catchError((e) { print('fetchDebts error: $e'); return null; }),
     ]).then((_) {
-      // ⬇️ NOUVEAU: Garantir que _isLoading devient false après 10 secondes max
+      // ⬇️ NOUVEAU: Garantir que _isLoading devient false après que les requêtes terminent
       if (mounted && _isLoading) {
         setState(() => _isLoading = false);
       }
@@ -514,10 +512,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       }
     });
     
-    // ⬇️ NOUVEAU: Fallback timeout - forcer _isLoading = false après 10 secondes max
-    Future.delayed(const Duration(seconds: 10), () {
+    // ⬇️ NOUVEAU: Fallback timeout absolu - forcer _isLoading = false après 5 secondes max
+    Future.delayed(const Duration(seconds: 5), () {
       if (mounted && _isLoading) {
-        print('⚠️ Force disabling loading after 10s (API too slow or offline)');
+        print('⚠️ Force disabling loading after 5s (API too slow or offline)');
         setState(() => _isLoading = false);
       }
     });
@@ -3607,7 +3605,38 @@ final choice = await showModalBottomSheet<String>(
                 ],
               ),
             )
-          : _tabIndex == 0 ? _buildDebtsTab() : _buildClientsTab(),
+          : (!_isLoading && debts.isEmpty && clients.isEmpty)
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error_outline, size: 48, color: Colors.orange),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Impossible de charger les données',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Vérifiez votre connexion Internet',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 24),
+                      ElevatedButton(
+                        onPressed: () {
+                          setState(() => _isLoading = true);
+                          _loadBoutique();
+                          fetchClients();
+                          fetchDebts();
+                        },
+                        child: const Text('Réessayer'),
+                      ),
+                    ],
+                  ),
+                )
+              : _tabIndex == 0 ? _buildDebtsTab() : _buildClientsTab(),
       bottomNavigationBar: Builder(
         builder: (ctx) {
           final isDark = Theme.of(ctx).brightness == Brightness.dark;

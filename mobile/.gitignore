@@ -49,3 +49,12 @@ app.*.map.json
 !build/web/**
 .vercel
 .env*.local
+
+# IDE
+.idea/
+*.iml
+
+# Flutter env
+**/Flutter.env
+.env
+
