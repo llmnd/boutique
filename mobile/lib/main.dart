@@ -103,18 +103,19 @@ void main() async {
     if (!kIsWeb) {
       try {
         await dotenv.load();
+        print('✅ .env loaded');
       } catch (e) {
-        print('⚠️  dotenv.load() failed: $e');
+        print('⚠️  dotenv.load() failed: $e - continuing without .env');
       }
     }
     
-    // ⬇️ NOUVEAU: Capturer les futures non gérées
+    // ⬇️ Capture unhandled futures
     PlatformDispatcher.instance.onError = (error, stack) {
       print('❌ Unhandled error: $error\n$stack');
       return true;
     };
     
-    // ✅ Error handling global pour Flutter Web
+    // ✅ Global error handler
     FlutterError.onError = (FlutterErrorDetails details) {
       print('❌ Flutter Error: ${details.exception}\n${details.stack}');
     };
@@ -144,6 +145,12 @@ void main() async {
                   Text(
                     e.toString(),
                     style: const TextStyle(color: Colors.grey, fontSize: 12),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Stack: ${stackTrace.toString().split('\n').take(5).join('\n')}',
+                    style: const TextStyle(color: Colors.grey, fontSize: 10),
                     textAlign: TextAlign.center,
                   ),
                 ],
