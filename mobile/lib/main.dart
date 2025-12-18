@@ -96,10 +96,13 @@ Map<String, dynamic> _formatDueDate(dynamic dateStr) {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  try {
-    await dotenv.load();
-  } catch (e) {
-    print('⚠️  dotenv.load() failed: $e (expected on web)');
+  // ✅ Only load .env on mobile/desktop, NOT on web
+  if (!kIsWeb) {
+    try {
+      await dotenv.load();
+    } catch (e) {
+      print('⚠️  dotenv.load() failed: $e');
+    }
   }
   
   // ⬇️ NOUVEAU: Capturer les futures non gérées
