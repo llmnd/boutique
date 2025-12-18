@@ -96,29 +96,64 @@ Map<String, dynamic> _formatDueDate(dynamic dateStr) {
 }
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  // ✅ Only load .env on mobile/desktop, NOT on web
-  if (!kIsWeb) {
-    try {
-      await dotenv.load();
-    } catch (e) {
-      print('⚠️  dotenv.load() failed: $e');
+  try {
+    WidgetsFlutterBinding.ensureInitialized();
+    
+    // ✅ Only load .env on mobile/desktop, NOT on web
+    if (!kIsWeb) {
+      try {
+        await dotenv.load();
+      } catch (e) {
+        print('⚠️  dotenv.load() failed: $e');
+      }
     }
-  }
-  
-  // ⬇️ NOUVEAU: Capturer les futures non gérées
-  PlatformDispatcher.instance.onError = (error, stack) {
-    print('❌ Unhandled error: $error\n$stack');
-    return true;
-  };
-  
-  // ✅ Error handling global pour Flutter Web
-  FlutterError.onError = (FlutterErrorDetails details) {
-    FlutterError.presentError(details);
-    print('❌ Flutter Error: ${details.exception}');
-  };
+    
+    // ⬇️ NOUVEAU: Capturer les futures non gérées
+    PlatformDispatcher.instance.onError = (error, stack) {
+      print('❌ Unhandled error: $error\n$stack');
+      return true;
+    };
+    
+    // ✅ Error handling global pour Flutter Web
+    FlutterError.onError = (FlutterErrorDetails details) {
+      print('❌ Flutter Error: ${details.exception}\n${details.stack}');
+    };
 
-  runApp(const MyApp());
+    runApp(const MyApp());
+  } catch (e, stackTrace) {
+    print('❌❌❌ CRITICAL ERROR IN MAIN: $e');
+    print('Stack: $stackTrace');
+    // Fallback UI
+    runApp(MaterialApp(
+      home: Scaffold(
+        body: Container(
+          color: const Color(0xFF0F1113),
+          child: Center(
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error, size: 48, color: Colors.red),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Erreur au démarrage',
+                    style: TextStyle(color: Colors.white, fontSize: 18),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    e.toString(),
+                    style: const TextStyle(color: Colors.grey, fontSize: 12),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ));
+  }
 }
 
 // ✅ ErrorBoundary widget pour capturer les erreurs de build
@@ -213,57 +248,76 @@ class _MyAppState extends State<MyApp> {
   }
 
   Future _loadOwner() async {
-    final prefs = await SharedPreferences.getInstance();
-    final phone = prefs.getString('owner_phone');
-    final shop = prefs.getString('owner_shop_name');
-    final id = prefs.getInt('owner_id');
-    
-    // Check if user has PIN configured
-    final pinService = PinAuthOfflineService();
-    final hasPinSet = await pinService.hasCachedCredentials();
-    
-    // Try to auto-login with token
-    if (phone != null) {
-      try {
-        await _appSettings.initForOwner(phone);
-      } catch (e) {
-        print('⚠️  _appSettings.initForOwner failed: $e');
-      }
-      final token = _appSettings.authToken;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final phone = prefs.getString('owner_phone');
+      final shop = prefs.getString('owner_shop_name');
+      final id = prefs.getInt('owner_id');
       
-      if (token != null && token.isNotEmpty) {
-        // Try to verify token (short timeout)
+      // Check if user has PIN configured
+      bool hasPinSet = false;
+      try {
+        final pinService = PinAuthOfflineService();
+        hasPinSet = await pinService.hasCachedCredentials();
+      } catch (e) {
+        print('⚠️  PIN service check failed: $e');
+      }
+      
+      // Try to auto-login with token
+      if (phone != null) {
         try {
-          final res = await http.post(
-            Uri.parse('$apiHost/auth/verify-token'.replaceFirst('\u007f', '')),
-            headers: {'Content-Type': 'application/json'},
-            body: json.encode({'auth_token': token})
-          ).timeout(const Duration(seconds: 2)); // ⬇️ Reduced from 5 to 2 seconds
+          await _appSettings.initForOwner(phone);
+        } catch (e) {
+          print('⚠️  _appSettings.initForOwner failed: $e');
+        }
+        
+        try {
+          final token = _appSettings.authToken;
           
-          if (res.statusCode == 200) {
-            final data = json.decode(res.body);
-            setState(() {
-              ownerPhone = data['phone'] ?? phone;
-              ownerShopName = data['shop_name'] ?? shop;
-              ownerId = data['id'] ?? id;
-              cachedHasPinForReturning = hasPinSet;
-            });
-            return; // Auto-login successful
+          if (token != null && token.isNotEmpty) {
+            // Try to verify token (short timeout)
+            try {
+              final res = await http.post(
+                Uri.parse('$apiHost/auth/verify-token'.replaceFirst('\u007f', '')),
+                headers: {'Content-Type': 'application/json'},
+                body: json.encode({'auth_token': token})
+              ).timeout(const Duration(seconds: 2)); // ⬇️ Reduced from 5 to 2 seconds
+              
+              if (res.statusCode == 200) {
+                final data = json.decode(res.body);
+                if (mounted) {
+                  setState(() {
+                    ownerPhone = data['phone'] ?? phone;
+                    ownerShopName = data['shop_name'] ?? shop;
+                    ownerId = data['id'] ?? id;
+                    cachedHasPinForReturning = hasPinSet;
+                  });
+                }
+                return; // Auto-login successful
+              }
+            } catch (e) {
+              // Token verification failed, continue to login page
+              print('⚠️  Token verification failed: $e');
+            }
           }
         } catch (e) {
-          // Token verification failed, continue to login page
-          print('Token verification failed: $e');
+          print('⚠️  Token access failed: $e');
         }
       }
+      
+      // Fallback: use stored credentials or go to login
+      if (mounted) {
+        setState(() {
+          ownerPhone = phone;
+          ownerShopName = shop;
+          ownerId = id;
+          cachedHasPinForReturning = hasPinSet;
+        });
+      }
+    } catch (e) {
+      print('❌ _loadOwner failed: $e');
+      // Continue anyway
     }
-    
-    // Fallback: use stored credentials or go to login
-    setState(() {
-      ownerPhone = phone;
-      ownerShopName = shop;
-      ownerId = id;
-      cachedHasPinForReturning = hasPinSet;
-    });
   }
 
   Future setOwner({required String phone, String? shopName, int? id, String? firstName, String? lastName, bool? boutiqueModeEnabled}) async {
