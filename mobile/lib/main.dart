@@ -184,8 +184,13 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-    _appSettings = AppSettings();
-    _appSettings.addListener(_onSettingsChanged);
+    try {
+      _appSettings = AppSettings();
+      _appSettings.addListener(_onSettingsChanged);
+    } catch (e) {
+      print('❌ Error initializing AppSettings: $e');
+      _appSettings = AppSettings(); // Fallback
+    }
     
     // ⬇️ Lancer _loadOwner() avec gestion d'erreur
     _loadOwner().catchError((e) {
@@ -215,7 +220,11 @@ class _MyAppState extends State<MyApp> {
     
     // Try to auto-login with token
     if (phone != null) {
-      await _appSettings.initForOwner(phone);
+      try {
+        await _appSettings.initForOwner(phone);
+      } catch (e) {
+        print('⚠️  _appSettings.initForOwner failed: $e');
+      }
       final token = _appSettings.authToken;
       
       if (token != null && token.isNotEmpty) {
