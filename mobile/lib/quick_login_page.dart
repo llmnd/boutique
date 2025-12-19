@@ -35,8 +35,17 @@ class _QuickLoginPageState extends State<QuickLoginPage> {
     selectedCountryCode = '221';
     setState(() => loadingCountries = false);
     
+    print('🔧 [QuickLoginPage] initState - apiHost: $apiHost');
+    
     // ⬇️ Charger les pays EN ARRIÈRE-PLAN (async, non-bloquant)
-    Future.delayed(const Duration(milliseconds: 500), _loadCountries);
+    Future.delayed(const Duration(milliseconds: 500), () {
+      print('🔧 [QuickLoginPage] Loading countries...');
+      _loadCountries().then((_) {
+        print('✅ [QuickLoginPage] Countries loaded successfully');
+      }).catchError((e) {
+        print('❌ [QuickLoginPage] Countries load error: $e');
+      });
+    });
   }
 
   @override
@@ -50,7 +59,7 @@ class _QuickLoginPageState extends State<QuickLoginPage> {
     try {
       final res = await http.get(
         Uri.parse('$apiHost/countries'),
-      ).timeout(const Duration(seconds: 3)); // ⬇️ Réduit à 3 sec
+      ).timeout(const Duration(seconds: 6));
       
       print('[COUNTRIES] Status: ${res.statusCode}');
       
@@ -66,6 +75,8 @@ class _QuickLoginPageState extends State<QuickLoginPage> {
             })
           );
         });
+      } else {
+        print('[COUNTRIES] Unexpected response: ${res.statusCode} - body: ${res.body}');
       }
     } on TimeoutException {
       print('⏱️ Countries timeout - using default (SN)');
