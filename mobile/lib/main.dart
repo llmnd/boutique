@@ -2242,62 +2242,67 @@ final choice = await showModalBottomSheet<String>(
                   const SizedBox(height: 12),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _amountMinController,
-                            keyboardType: TextInputType.number,
-                            style: TextStyle(color: textColor, fontSize: 12),
-                            onChanged: (_) => setState(() {
-                              _minDebtAmount = double.tryParse(_amountMinController.text) ?? 0.0;
-                            }),
-                            decoration: InputDecoration(
-                              hintText: 'Min',
-                              hintStyle: TextStyle(color: textColorSecondary, fontSize: 11),
-                              border: UnderlineInputBorder(borderSide: BorderSide(color: borderColor, width: 0.3)),
-                              enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: borderColor, width: 0.3)),
-                              focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: textColor, width: 0.5)),
-                              contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 80,
+                            child: TextField(
+                              controller: _amountMinController,
+                              keyboardType: TextInputType.number,
+                              style: TextStyle(color: textColor, fontSize: 12),
+                              onChanged: (_) => setState(() {
+                                _minDebtAmount = double.tryParse(_amountMinController.text) ?? 0.0;
+                              }),
+                              decoration: InputDecoration(
+                                hintText: 'Min',
+                                hintStyle: TextStyle(color: textColorSecondary, fontSize: 11),
+                                border: UnderlineInputBorder(borderSide: BorderSide(color: borderColor, width: 0.3)),
+                                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: borderColor, width: 0.3)),
+                                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: textColor, width: 0.5)),
+                                contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Text('-', style: TextStyle(color: textColorSecondary, fontSize: 14, fontWeight: FontWeight.w300)),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: TextField(
-                            controller: _amountMaxController,
-                            keyboardType: TextInputType.number,
-                            style: TextStyle(color: textColor, fontSize: 12),
-                            onChanged: (_) => setState(() {
-                              _maxDebtAmount = double.tryParse(_amountMaxController.text) ?? 0.0;
-                            }),
-                            decoration: InputDecoration(
-                              hintText: 'Max',
-                              hintStyle: TextStyle(color: textColorSecondary, fontSize: 11),
-                              border: UnderlineInputBorder(borderSide: BorderSide(color: borderColor, width: 0.3)),
-                              enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: borderColor, width: 0.3)),
-                              focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: textColor, width: 0.5)),
-                              contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
+                          const SizedBox(width: 12),
+                          Text('-', style: TextStyle(color: textColorSecondary, fontSize: 14, fontWeight: FontWeight.w300)),
+                          const SizedBox(width: 12),
+                          SizedBox(
+                            width: 80,
+                            child: TextField(
+                              controller: _amountMaxController,
+                              keyboardType: TextInputType.number,
+                              style: TextStyle(color: textColor, fontSize: 12),
+                              onChanged: (_) => setState(() {
+                                _maxDebtAmount = double.tryParse(_amountMaxController.text) ?? 0.0;
+                              }),
+                              decoration: InputDecoration(
+                                hintText: 'Max',
+                                hintStyle: TextStyle(color: textColorSecondary, fontSize: 11),
+                                border: UnderlineInputBorder(borderSide: BorderSide(color: borderColor, width: 0.3)),
+                                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: borderColor, width: 0.3)),
+                                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: textColor, width: 0.5)),
+                                contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
+                              ),
                             ),
                           ),
-                        ),
-                        if (_minDebtAmount > 0 || _maxDebtAmount > 0)
-                          IconButton(
-                            icon: Icon(Icons.clear, size: 16, color: textColorSecondary),
-                            onPressed: () {
-                              _amountMinController.clear();
-                              _amountMaxController.clear();
-                              setState(() {
-                                _minDebtAmount = 0.0;
-                                _maxDebtAmount = 0.0;
-                              });
-                            },
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
-                          ),
-                      ],
+                          if (_minDebtAmount > 0 || _maxDebtAmount > 0)
+                            IconButton(
+                              icon: Icon(Icons.clear, size: 16, color: textColorSecondary),
+                              onPressed: () {
+                                _amountMinController.clear();
+                                _amountMaxController.clear();
+                                setState(() {
+                                  _minDebtAmount = 0.0;
+                                  _maxDebtAmount = 0.0;
+                                });
+                              },
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
@@ -2441,14 +2446,14 @@ final choice = await showModalBottomSheet<String>(
                               // ✅ LIGNE AVEC NUMÉRO ET DATE
                               Padding(
                                 padding: const EdgeInsets.only(top: 6),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    // ✅ NUMÉRO À GAUCHE - seulement si pas dans les contacts
-                                    if (clientPhone != null && clientPhone.isNotEmpty && client == null)
-                                      Flexible(
-                                        child: Container(
+                                child: SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      // ✅ NUMÉRO À GAUCHE - seulement si pas dans les contacts
+                                      if (clientPhone != null && clientPhone.isNotEmpty && client == null)
+                                        Container(
                                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                           decoration: BoxDecoration(
                                             color: Theme.of(context).colorScheme.primary.withOpacity(0.08),
@@ -2471,51 +2476,51 @@ final choice = await showModalBottomSheet<String>(
                                             overflow: TextOverflow.ellipsis,
                                           ),
                                         ),
-                                      ),
-                                    // ✅ ESPACEMENT ADAPTATIF
-                                    if (clientPhone != null && clientPhone.isNotEmpty && client == null && latestDebt != null && latestDebt['due_date'] != null)
-                                      const SizedBox(width: 8),
-                                    // ✅ DATE À DROITE - ou centrée si pas de numéro
-                                    if (latestDebt != null && latestDebt['due_date'] != null)
-                                      Builder(
-                                        builder: (_) {
-                                          final dueInfo = _formatDueDate(latestDebt?['due_date']);
-                                          return Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                            decoration: BoxDecoration(
-                                              color: (dueInfo['color'] as Color).withOpacity(0.1),
-                                              borderRadius: BorderRadius.circular(3),
-                                              border: Border.all(
-                                                color: (dueInfo['color'] as Color).withOpacity(0.2),
-                                                width: 0.5,
+                                      // ✅ ESPACEMENT ADAPTATIF
+                                      if (clientPhone != null && clientPhone.isNotEmpty && client == null && latestDebt != null && latestDebt['due_date'] != null)
+                                        const SizedBox(width: 8),
+                                      // ✅ DATE À DROITE - ou centrée si pas de numéro
+                                      if (latestDebt != null && latestDebt['due_date'] != null)
+                                        Builder(
+                                          builder: (_) {
+                                            final dueInfo = _formatDueDate(latestDebt?['due_date']);
+                                            return Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                              decoration: BoxDecoration(
+                                                color: (dueInfo['color'] as Color).withOpacity(0.1),
+                                                borderRadius: BorderRadius.circular(3),
+                                                border: Border.all(
+                                                  color: (dueInfo['color'] as Color).withOpacity(0.2),
+                                                  width: 0.5,
+                                                ),
                                               ),
-                                            ),
-                                            child: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Icon(
-                                                  dueInfo['icon'] as IconData,
-                                                  size: 11,
-                                                  color: dueInfo['color'] as Color,
-                                                ),
-                                                const SizedBox(width: 3),
-                                                Text(
-                                                  dueInfo['text'] as String,
-                                                  style: TextStyle(
-                                                    fontSize: 9,
-                                                    fontWeight: FontWeight.w600,
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(
+                                                    dueInfo['icon'] as IconData,
+                                                    size: 11,
                                                     color: dueInfo['color'] as Color,
-                                                    letterSpacing: 0.3,
                                                   ),
-                                                  maxLines: 1,
-                                                  overflow: TextOverflow.ellipsis,
-                                                ),
-                                              ],
-                                            ),
-                                          );
-                                        },
-                                      ),
-                                  ],
+                                                  const SizedBox(width: 3),
+                                                  Text(
+                                                    dueInfo['text'] as String,
+                                                    style: TextStyle(
+                                                      fontSize: 9,
+                                                      fontWeight: FontWeight.w600,
+                                                      color: dueInfo['color'] as Color,
+                                                      letterSpacing: 0.3,
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ],

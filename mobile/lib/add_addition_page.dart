@@ -126,96 +126,108 @@ class _AddAdditionPageState extends State<AddAdditionPage> {
         centerTitle: true,
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 8),
-              
-              // Montant principal
-              Text('MONTANT', 
-                style: TextStyle(
-                  color: textColorSecondary,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: 0.5
-                )),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _amountCtl,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.w300,
-                  color: textColor,
-                  height: 1.2
-                ),
-                decoration: InputDecoration(
-                  hintText: '',
-                  hintStyle: TextStyle(color: textColorSecondary),
-                  filled: true,
-                  fillColor: surfaceColor,
-                  enabledBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: borderColor, width: 1),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: textColor, width: 1.2),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  prefixStyle: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w300,
-                    color: textColor,
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Montant principal
+                      Text('MONTANT', 
+                        style: TextStyle(
+                          color: textColorSecondary,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: 0.5
+                        )),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _amountCtl,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        style: TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.w300,
+                          color: textColor,
+                          height: 1.2
+                        ),
+                        decoration: InputDecoration(
+                          hintText: '',
+                          hintStyle: TextStyle(color: textColorSecondary),
+                          filled: true,
+                          fillColor: surfaceColor,
+                          enabledBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: borderColor, width: 1),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: textColor, width: 1.2),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          prefixStyle: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w300,
+                            color: textColor,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Section informations
+                      Text('INFORMATIONS',
+                        style: TextStyle(
+                          color: textColorSecondary,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: 0.5
+                        )),
+                      const SizedBox(height: 16),
+
+                      // Date
+                      _ZaraFormField(
+                        isDark: isDark,
+                        onTap: _selectDate,
+                        child: Row(
+                          children: [
+                            Icon(Icons.calendar_today_outlined, 
+                              color: textColorSecondary, size: 18),
+                            const SizedBox(width: 12),
+                            Text(DateFormat('dd/MM/yyyy').format(_addedAt), 
+                              style: TextStyle(color: textColor)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Notes
+                      _ZaraFormField(
+                        isDark: isDark,
+                        child: TextField(
+                          controller: _notesCtl,
+                          maxLines: 3,
+                          decoration: InputDecoration(
+                            hintText: 'Notes (optionnel)',
+                            hintStyle: TextStyle(color: textColorSecondary, fontSize: 14),
+                            border: InputBorder.none,
+                          ),
+                          style: TextStyle(color: textColor, fontSize: 14),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
+            ),
 
-              // Section informations
-              Text('INFORMATIONS',
-                style: TextStyle(
-                  color: textColorSecondary,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: 0.5
-                )),
-              const SizedBox(height: 16),
-
-              // Date
-              _ZaraFormField(
-                isDark: isDark,
-                onTap: _selectDate,
-                child: Row(
-                  children: [
-                    Icon(Icons.calendar_today_outlined, 
-                      color: textColorSecondary, size: 18),
-                    const SizedBox(width: 12),
-                    Text(DateFormat('dd/MM/yyyy').format(_addedAt), 
-                      style: TextStyle(color: textColor)),
-                  ],
-                ),
+            // Bouton fixe en bas
+            Container(
+              decoration: BoxDecoration(
+                border: Border(top: BorderSide(color: borderColor, width: 1)),
               ),
-              const SizedBox(height: 12),
-
-              // Notes
-              _ZaraFormField(
-                isDark: isDark,
-                child: TextField(
-                  controller: _notesCtl,
-                  maxLines: 3,
-                  decoration: InputDecoration(
-                    hintText: 'Notes (optionnel)',
-                    hintStyle: TextStyle(color: textColorSecondary, fontSize: 14),
-                    border: InputBorder.none,
-                  ),
-                  style: TextStyle(color: textColor, fontSize: 14),
-                ),
-              ),
-              const Spacer(),
-
-              // Bouton
-              SizedBox(
+              padding: const EdgeInsets.all(16),
+              child: SizedBox(
                 width: double.infinity,
                 height: 48,
                 child: ElevatedButton(
@@ -252,9 +264,8 @@ class _AddAdditionPageState extends State<AddAdditionPage> {
                       ),
                 ),
               ),
-              const SizedBox(height: 20),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
