@@ -12,6 +12,7 @@ class ApiService {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/clients?owner_phone=$ownerPhone'),
+        headers: {'x-owner': ownerPhone},
       );
 
       if (response.statusCode == 200) {
@@ -36,7 +37,10 @@ class ApiService {
         url += '&q=$query';
       }
 
-      final response = await http.get(Uri.parse(url));
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {'x-owner': ownerPhone},
+      );
 
       if (response.statusCode == 200) {
         final parsed = jsonDecode(response.body) as List;
