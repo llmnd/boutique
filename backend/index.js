@@ -141,4 +141,34 @@ runMigrations();
 
 app.get('/', (req, res) => res.send('Boutique backend is running'));
 
+// ✅ APK Download endpoint
+app.get('/api/download/apk', (req, res) => {
+  try {
+    const apkPath = path.join(__dirname, '../build/web/downloads/boutique-mobile.apk');
+    
+    // Check if file exists
+    if (!fs.existsSync(apkPath)) {
+      return res.status(404).json({ error: 'APK not found' });
+    }
+    
+    // Set proper headers for APK download
+    res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+    res.setHeader('Content-Disposition', 'attachment; filename=boutique-mobile.apk');
+    res.setHeader('Content-Length', fs.statSync(apkPath).size);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    
+    // Stream the file
+    const fileStream = fs.createReadStream(apkPath);
+    fileStream.pipe(res);
+    
+    fileStream.on('error', (err) => {
+      console.error('❌ Error streaming APK:', err);
+      res.status(500).json({ error: 'Error downloading APK' });
+    });
+  } catch (err) {
+    console.error('❌ APK download error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 app.listen(port, () => console.log(`Server running on port ${port}`));

@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Boutique - Télécharger APK</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            text-align: center;
+        }
+        
+        .icon {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 30px;
+            font-size: 40px;
+        }
+        
+        h1 {
+            color: #1a1a1a;
+            font-size: 28px;
+            margin-bottom: 12px;
+        }
+        
+        .subtitle {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+        
+        .info {
+            background: #f5f5f5;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 30px;
+            text-align: left;
+        }
+        
+        .info-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+            font-size: 14px;
+            color: #555;
+        }
+        
+        .info-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .info-item strong {
+            margin-right: 8px;
+            color: #1a1a1a;
+        }
+        
+        .download-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 16px 40px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            width: 100%;
+            margin-bottom: 12px;
+        }
+        
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+        
+        .download-btn:active {
+            transform: translateY(0);
+        }
+        
+        .alternative-link {
+            color: #667eea;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            padding: 12px;
+            border: 1px solid #667eea;
+            border-radius: 8px;
+            display: block;
+            transition: all 0.3s ease;
+        }
+        
+        .alternative-link:hover {
+            background: #f0f4ff;
+        }
+        
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            color: #999;
+            font-size: 12px;
+        }
+        
+        .qr-section {
+            margin: 30px 0;
+        }
+        
+        .qr-section p {
+            font-size: 12px;
+            color: #999;
+            margin-bottom: 10px;
+        }
+        
+        @media (max-width: 480px) {
+            .container {
+                padding: 30px 20px;
+            }
+            
+            h1 {
+                font-size: 24px;
+            }
+            
+            .download-btn {
+                padding: 14px 30px;
+                font-size: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">📱</div>
+        
+        <h1>Boutique Mobile</h1>
+        <p class="subtitle">Application Android pour la gestion des dettes et prêts</p>
+        
+        <div class="info">
+            <div class="info-item">
+                <strong>Version:</strong>
+                <span>1.0.0</span>
+            </div>
+            <div class="info-item">
+                <strong>Taille:</strong>
+                <span>~45 MB</span>
+            </div>
+            <div class="info-item">
+                <strong>Android:</strong>
+                <span>5.0 et supérieur</span>
+            </div>
+        </div>
+        
+        <button class="download-btn" onclick="downloadAPK()">
+            📥 Télécharger APK
+        </button>
+        
+        <a href="#" class="alternative-link" onclick="copyDownloadLink(event)">
+            Copier le lien de téléchargement
+        </a>
+        
+        <div class="footer">
+            <p>Le téléchargement commencera automatiquement. Si ce n'est pas le cas, <a href="#" onclick="downloadAPK(); return false;" style="color: #667eea;">cliquez ici</a>.</p>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE = 'https://vocal-fernandina-llmndg-0b759290.koyeb.app/api';
+        
+        function downloadAPK() {
+            // Try multiple endpoints
+            const downloadURL = API_BASE + '/download/apk';
+            
+            // Create a temporary link and click it
+            const link = document.createElement('a');
+            link.href = downloadURL;
+            link.setAttribute('download', 'boutique-mobile.apk');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+        
+        function copyDownloadLink(e) {
+            e.preventDefault();
+            const downloadURL = API_BASE + '/download/apk';
+            
+            navigator.clipboard.writeText(downloadURL).then(() => {
+                const btn = e.target;
+                const originalText = btn.textContent;
+                btn.textContent = '✓ Lien copié!';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                }, 2000);
+            }).catch(() => {
+                alert('Lien: ' + downloadURL);
+            });
+        }
+    </script>
+</body>
+</html>
