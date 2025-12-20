@@ -249,7 +249,7 @@ class _AddDebtPageState extends State<AddDebtPage> with TickerProviderStateMixin
                                 ],
                               ),
                             );
-                          }).toList(),
+                          }),
                         ],
                         onChanged: (value) {
                           setStateDialog(() => selectedCountryCode = value);

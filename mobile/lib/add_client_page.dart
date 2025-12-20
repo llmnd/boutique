@@ -349,7 +349,7 @@ class _AddClientPageState extends State<AddClientPage> {
                                       ],
                                     ),
                                   );
-                                }).toList(),
+                                }),
                                 // ✅ Autres pays
                                 ...countries.where((c) => c['code'] != '221').map((country) {
                                   return DropdownMenuItem<String?>(
@@ -369,7 +369,7 @@ class _AddClientPageState extends State<AddClientPage> {
                                       ],
                                     ),
                                   );
-                                }).toList(),
+                                }),
                               ],
                               onChanged: (value) {
                                 setState(() => selectedCountryCode = value);

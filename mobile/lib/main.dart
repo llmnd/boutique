@@ -237,9 +237,11 @@ class _MyAppState extends State<MyApp> {
       _appSettings = AppSettings(); // Fallback
     }
     
-    // ⬇️ Lancer _loadOwner() avec gestion d'erreur
-    _loadOwner().catchError((e) {
-      print('❌ Error in _loadOwner: $e');
+    // ⬇️ Lancer _loadOwner() EN ARRIÈRE-PLAN (mais allow error handling)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadOwner().catchError((e) {
+        print('❌ Error in _loadOwner: $e');
+      });
     });
   }
 
