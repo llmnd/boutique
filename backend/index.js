@@ -142,7 +142,7 @@ runMigrations();
 app.get('/', (req, res) => res.send('Boutique backend is running'));
 
 // ✅ APK Download endpoint
-app.get('/api/download/apk', (req, res) => {
+app.get('/download/apk', (req, res) => {
   try {
     const apkPath = path.join(__dirname, '../build/web/downloads/boutique-mobile.apk');
     
