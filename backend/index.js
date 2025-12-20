@@ -29,6 +29,15 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
+// ✅ Serve static files from build/web (for APK and other downloads)
+const buildWebPath = path.join(__dirname, '../build/web');
+if (fs.existsSync(buildWebPath)) {
+  app.use(express.static(buildWebPath));
+  console.log('✅ Static files served from:', buildWebPath);
+} else {
+  console.warn('⚠️  build/web directory not found at:', buildWebPath);
+}
+
 app.use('/api/debts', debtsRouter);
 app.use('/api/clients', clientsRouter);
 app.use('/api/auth', authRouter);
@@ -141,14 +150,57 @@ runMigrations();
 
 app.get('/', (req, res) => res.send('Boutique backend is running'));
 
-// ✅ APK Download endpoint
-app.get('/download/apk', (req, res) => {
+// ✅ Diagnostic endpoint - check APK locations
+app.get('/api/apk-status', (req, res) => {
+  const possiblePaths = [
+    path.join(__dirname, '../build/web/downloads/boutique-mobile.apk'),
+    path.join(__dirname, '../public_build/downloads/boutique-mobile.apk'),
+    path.join(__dirname, '../vercel-build/downloads/boutique-mobile.apk'),
+    path.join(__dirname, '../public/downloads/boutique-mobile.apk'),
+  ];
+  
+  const status = {
+    __dirname,
+    checked_paths: possiblePaths,
+    found_at: null,
+    static_serves_from: path.join(__dirname, '../build/web'),
+  };
+  
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p)) {
+      status.found_at = p;
+      const stats = fs.statSync(p);
+      status.file_size = stats.size;
+      status.file_size_mb = (stats.size / 1024 / 1024).toFixed(2) + ' MB';
+      break;
+    }
+  }
+  
+  res.json(status);
+});
+
+// ✅ APK Download endpoint - serves from /downloads/boutique-mobile.apk (or static files)
+app.get('/api/download/apk', (req, res) => {
   try {
-    const apkPath = path.join(__dirname, '../build/web/downloads/boutique-mobile.apk');
+    // Try multiple paths
+    const possiblePaths = [
+      path.join(__dirname, '../build/web/downloads/boutique-mobile.apk'),
+      path.join(__dirname, '../public_build/downloads/boutique-mobile.apk'),
+      path.join(__dirname, '../vercel-build/downloads/boutique-mobile.apk'),
+    ];
     
-    // Check if file exists
-    if (!fs.existsSync(apkPath)) {
-      return res.status(404).json({ error: 'APK not found' });
+    let apkPath = null;
+    for (const p of possiblePaths) {
+      if (fs.existsSync(p)) {
+        apkPath = p;
+        console.log('✅ APK found at:', p);
+        break;
+      }
+    }
+    
+    if (!apkPath) {
+      console.error('❌ APK not found in any location:', possiblePaths);
+      return res.status(404).json({ error: 'APK not found', checked_paths: possiblePaths });
     }
     
     // Set proper headers for APK download
@@ -163,11 +215,13 @@ app.get('/download/apk', (req, res) => {
     
     fileStream.on('error', (err) => {
       console.error('❌ Error streaming APK:', err);
-      res.status(500).json({ error: 'Error downloading APK' });
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Error downloading APK' });
+      }
     });
   } catch (err) {
     console.error('❌ APK download error:', err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Server error', details: err.message });
   }
 });
 
