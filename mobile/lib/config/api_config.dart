@@ -7,8 +7,15 @@ class ApiConfig {
     if (kIsWeb) {
       return 'https://vocal-fernandina-llmndg-0b759290.koyeb.app/api';
     }
-    // On mobile, try to get from .env using maybeGet() (doesn't throw if not initialized)
-    final baseUrl = dotenv.maybeGet('API_BASE_URL');
-    return baseUrl ?? 'https://vocal-fernandina-llmndg-0b759290.koyeb.app/api';
+    // On mobile, try to get from .env with try-catch (dotenv may not be initialized)
+    try {
+      final baseUrl = dotenv.env['API_BASE_URL'];
+      if (baseUrl != null && baseUrl.isNotEmpty) {
+        return baseUrl;
+      }
+    } catch (e) {
+      // dotenv not initialized, use fallback
+    }
+    return 'https://vocal-fernandina-llmndg-0b759290.koyeb.app/api';
   }
 }
